@@ -1,0 +1,45 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:15.1-alpine
+    container_name: postgres
+    restart: on-failure
+    environment:
+      POSTGRES_DB: "${POSTGRES_DB}"
+      POSTGRES_USER: "${POSTGRES_USER}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}" ]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+
+  valkey:
+    image: valkey/valkey:8.0-alpine
+    container_name: valkey
+    ports:
+      - "${VALKEY_PORT}:6379"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  app_prepare:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: no
+    depends_on:
+      db:
+        condition: service_healthy
+    command: uv run yoyo -vvv apply --batch /app/migrations -d "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}"
+
+networks:
+  default:
+    name: lan_event_collect
