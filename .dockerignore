@@ -1,0 +1,28 @@
+# Common
+README.md
+CHANGELOG.md
+*.txt
+!requirements.txt
+
+# Docker
+.dockerignore
+docker-compose.yml
+Dockerfile
+
+# Git
+.git
+.gitattributes
+.gitignore
+.github
+
+# Python
+.pytest_cache
+**/__pycache__/
+
+# JetBrains
+.idea
+
+# Virtual environment
+.env
+.venv
+venv

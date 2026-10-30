@@ -1,0 +1,20 @@
+[project]
+name = "event-collect"
+version = "0.1.0"
+requires-python = ">=3.12"
+
+dependencies = [
+    "asyncpg>=0.32.0",
+    "taskiq>=0.13.0",
+    "yoyo-migrations>=9.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.7.0",
+    "pytest>=9.2.0",
+    "pytest-asyncio>=1.4.1",
+    "pytest-clarity>=1.0.1",
+    "pytest-mock>=3.17.0",
+    "testcontainers>=4.15.0",
+]

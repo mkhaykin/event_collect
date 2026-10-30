@@ -1,0 +1,113 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace      # убирает лишние пробелы
+        files: \.(py|sh|rst|yml|yaml)$
+      - id: check-added-large-files  # тяжелые файлы
+        args: ['--maxkb=32']
+        exclude: ^uv.lock$
+      - id: check-yaml               # синтаксис .yaml файлов
+      - id: check-json               # синтаксис .json файлов
+      - id: check-case-conflict   # проверяет файлы, которые могут конфликтовать в файловых системах без учета регистра.
+      - id: check-merge-conflict  # проверяет файлы, содержащие конфликтные строки слияния.
+      - id: end-of-file-fixer          # добавляет пустую строку в конце файла
+      - id: debug-statements
+
+  - repo: https://github.com/PyCQA/isort
+    rev: 9.0.0b2
+    hooks:
+      - id: isort
+        name: isort
+        entry: isort
+        language: python
+        types: [python]
+        exclude: __init__.py
+        args: [ --profile, black, --line-length=79, ]
+        additional_dependencies:
+          - isort
+
+  - repo: https://github.com/PyCQA/autoflake
+    rev: v2.3.3
+    hooks:
+      - id: autoflake
+        name: autoflake
+        entry: autoflake
+        language: python
+        types: [python]
+        exclude: __init__.py
+        args: [
+          --in-place,
+          --ignore-init-module-imports,
+          --remove-all-unused-imports,
+          --remove-duplicate-keys,
+        ]
+        additional_dependencies:
+          - autoflake
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.3
+    hooks:
+      - id: ruff-check
+        name: ruff-linter
+        args: [
+          "--fix",
+          "--line-length=110",
+          "--target-version=py312",
+          "--select=E,W,F,ANN,B,A,COM,C4,T10,ERA,EXE,FIX,PYI,S,ARG,TD,I,PL",
+          "--ignore=ANN101,ANN102,ANN401,B017,EXE002,S101,FIX002,TD002,TD003,TD004",
+          "--per-file-ignores=tests/*.py:S101",
+        ]
+
+      - id: ruff-format
+        name: ruff-formatter
+        args: [ "--line-length=110" ]
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v2.3.0
+    hooks:
+      - id: mypy
+        name: mypy
+        entry: mypy
+        language: python
+        language_version: python3.12
+        types: [python]
+        exclude: ^(migrations|alembic|tests)/
+        args: [
+          --show-error-codes,
+          --python-version=3.12,
+          "--exclude", "^(migrations|alembic|tests)/",
+          "--ignore-missing-imports",
+          "--explicit-package-bases"
+        ]
+        additional_dependencies:
+          - aiohttp
+          - celery
+          - fastapi
+          - psycopg2-binary
+
+  - repo: local
+    hooks:
+      - id: pytest-check
+        name: pytest-check
+        args: ["-q", "-m", "not slow"]
+        entry: pytest
+        language: python
+        language_version: python3.12
+        pass_filenames: false
+        always_run: true
+        additional_dependencies:
+          - aiohttp
+          - celery
+          - fastapi
+          - psycopg2-binary
+
+exclude: |
+    (?x)(
+        __pycache__
+        ^alembic/|
+        ^samples/|
+        ^docs/|
+        ^.venv/|
+        ^.idea/
+    )
