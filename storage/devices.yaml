@@ -1,0 +1,11 @@
+devices:
+  - uid: "router-core-01"
+    ip: "192.168.1.1"
+    check_type: "icmp"
+    collect_interval_min: 30
+
+  - uid: "web-server-02"
+    ip: "192.168.1.250"
+    check_type: "port"
+    port: 80
+    collect_interval_min: 60

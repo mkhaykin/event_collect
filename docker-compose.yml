@@ -40,6 +40,38 @@ services:
         condition: service_healthy
     command: uv run yoyo -vvv apply --batch /app/migrations -d "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}"
 
+  device-provider-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: .venv/bin/python -m taskiq worker apps.device_provider.tasks:broker --log-level DEBUG --no-configure-logging
+    depends_on:
+      valkey:
+        condition: service_healthy
+    environment:
+      - VALKEY_DSN=redis://valkey:6379/0
+      - TASKIQ_LOG_LEVEL=DEBUG
+    volumes:
+      - ./storage:/storage:ro
+    links:
+      - valkey
+
+  device-provider-scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: .venv/bin/python -m taskiq scheduler apps.device_provider.scheduler:scheduler
+    depends_on:
+      valkey:
+        condition: service_healthy
+      device-provider-worker:
+        condition: service_started
+    environment:
+      - VALKEY_DSN=redis://valkey:6379/0
+      - TASKIQ_LOG_LEVEL=INFO
+    links:
+      - valkey
+
 networks:
   default:
     name: lan_event_collect
