@@ -58,6 +58,7 @@ repos:
           "--ignore=ANN101,ANN102,ANN401,B017,EXE002,S101,FIX002,TD002,TD003,TD004",
           "--per-file-ignores=tests/*.py:S101",
         ]
+        exclude: ^(tests)/
 
       - id: ruff-format
         name: ruff-formatter
