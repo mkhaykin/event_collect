@@ -72,6 +72,18 @@ services:
     links:
       - valkey
 
+  device-poller:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: .venv/bin/python -m apps.poller.main
+#    command: sleep infinity
+    depends_on:
+      - valkey
+    environment:
+      - VALKEY_DSN=redis://valkey:6379/0
+    restart: always
+
 networks:
   default:
     name: lan_event_collect
