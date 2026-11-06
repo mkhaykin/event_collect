@@ -46,8 +46,8 @@ services:
       dockerfile: Dockerfile
     command: .venv/bin/python -m taskiq worker apps.device_provider.tasks:broker --log-level DEBUG --no-configure-logging
     depends_on:
-      valkey:
-        condition: service_healthy
+      app_prepare:
+        condition: service_completed_successfully
     environment:
       - VALKEY_DSN=redis://valkey:6379/0
       - TASKIQ_LOG_LEVEL=DEBUG
@@ -62,8 +62,8 @@ services:
       dockerfile: Dockerfile
     command: .venv/bin/python -m taskiq scheduler apps.device_provider.scheduler:scheduler
     depends_on:
-      valkey:
-        condition: service_healthy
+      app_prepare:
+        condition: service_completed_successfully
       device-provider-worker:
         condition: service_started
     environment:
@@ -79,7 +79,8 @@ services:
     command: .venv/bin/python -m apps.poller.main
 #    command: sleep infinity
     depends_on:
-      - valkey
+      app_prepare:
+        condition: service_completed_successfully
     environment:
       - VALKEY_DSN=redis://valkey:6379/0
     restart: always
