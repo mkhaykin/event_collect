@@ -2,7 +2,9 @@ FROM python:3.12-slim-trixie
 
 LABEL maintainer="mkhaikin@yandex.ru"
 
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl ca-certificates \
+    libcap2-bin iputils-ping
 
 ADD https://astral.sh/uv/install.sh /uv-installer.sh
 
@@ -22,6 +24,10 @@ RUN chown -R appuser:appgroup /app
 
 COPY pyproject.toml uv.lock ./
 RUN uv sync --locked
+
+RUN setcap cap_net_raw+ep /usr/local/bin/python3.12 && \
+    if [ -f /app/.venv/bin/python ]; then setcap cap_net_raw+ep $(readlink -f /app/.venv/bin/python); fi
+
 
 USER appuser
 
