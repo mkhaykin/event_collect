@@ -1,10 +1,12 @@
 # libs/events/models.py
 from typing import Literal, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class BaseDeviceConfig(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     uid: str
 
 
