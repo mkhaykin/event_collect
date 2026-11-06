@@ -6,11 +6,12 @@ from taskiq.schedule_sources import LabelScheduleSource
 
 from apps.device_provider.tasks import broker
 
-logger = logging.getLogger("DeviceProvider")
+logger = logging.getLogger(__name__)
 logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s [%(levelname)s] [%(module)s:%(lineno)d] %(name)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[logging.StreamHandler()],
 )
 
 
