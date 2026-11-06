@@ -43,7 +43,7 @@ class DeviceStateMachine:
     def get_probes_config(self, uid: str) -> int:
         """Динамический расчет количества необходимых проб."""
         state = self._states.get(uid)
-        if not state or state.current_status == "online":
+        if state and state.current_status == "online":
             return 3  # Для онлайн устройств делаем 3 пробы
         return 1  # Для офлайн — экономим сеть, делаем 1 пробу
 
