@@ -66,6 +66,8 @@ services:
         condition: service_completed_successfully
       device-provider-worker:
         condition: service_started
+      collector:  # временно, из-за гонки в очереди
+        condition: service_started
     environment:
       - VALKEY_DSN=redis://valkey:6379/0
       - TASKIQ_LOG_LEVEL=INFO
@@ -78,6 +80,20 @@ services:
       dockerfile: Dockerfile
     command: .venv/bin/python -m apps.poller.main
 #    command: sleep infinity
+    depends_on:
+      app_prepare:
+        condition: service_completed_successfully
+      collector:  # временно, из-за гонки в очереди
+        condition: service_started
+    environment:
+      - VALKEY_DSN=redis://valkey:6379/0
+    restart: always
+
+  collector:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: .venv/bin/python -m apps.collector.main
     depends_on:
       app_prepare:
         condition: service_completed_successfully
