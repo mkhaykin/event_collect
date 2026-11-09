@@ -26,12 +26,15 @@ logging.basicConfig(
 
 async def get_provider_service() -> AsyncGenerator[DeviceProviderService, None]:
     path = "/storage/devices.yaml"
-    service = DeviceProviderService.factory(path, config.VALKEY_DSN, logger=logger)
-    await service.connect()
-    try:
-        yield service
-    finally:
-        await service.close()
+    async with DeviceProviderService.factory(
+        config_path=path,
+        valkey_dsn=config.VALKEY_DSN,
+        logger=logger,
+    ) as service:
+        try:
+            yield service
+        finally:
+            pass
 
 
 DeviceProviderDep = Annotated[DeviceProviderService, TaskiqDepends(get_provider_service)]
@@ -39,7 +42,7 @@ DeviceProviderDep = Annotated[DeviceProviderService, TaskiqDepends(get_provider_
 
 @broker.task(
     name="provider:sync_configuration",
-    schedule=[{"cron": "*/1 * * * *"}],
+    schedule=[{"cron": "*/5 * * * *"}],
 )
 async def run_sync_task(service: DeviceProviderDep) -> None:
     await service.sync_configuration()

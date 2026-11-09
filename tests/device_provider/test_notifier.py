@@ -1,4 +1,5 @@
 # tests/test_notifier.py
+from typing import AsyncGenerator
 
 import pytest
 import pytest_asyncio
@@ -12,21 +13,11 @@ CONFIG_EVENT_UPDATED = DeviceNotificationService.CONFIG_EVENT_UPDATED
 
 
 @pytest_asyncio.fixture
-async def notifier(valkey_dsn) -> DeviceNotificationService:
-    srv = DeviceNotificationService(valkey_dsn)
-    await srv.connect()
+async def notifier(
+    valkey_client: valkey.Redis,
+) -> AsyncGenerator[DeviceNotificationService, None]:
+    srv = DeviceNotificationService(valkey_client)
     yield srv
-    await srv.close()
-
-
-@pytest.mark.asyncio
-async def test_notifier_client_not_connected():
-    """Крайний случай: Вызов методов до вызова connect() должен рейзить ошибку."""
-    notifier = DeviceNotificationService("redis://localhost:6379/0")
-    device = DeviceConfig(uid="dev-1", ip="1.1.1.1", check_type="icmp")
-
-    with pytest.raises(RuntimeError, match="Клиент не создан"):
-        await notifier.send_device_created(device)
 
 
 @pytest.mark.asyncio

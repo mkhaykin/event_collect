@@ -1,9 +1,12 @@
 # tests/conftest.py
 import asyncio
+from typing import AsyncGenerator
 
 import pytest
 import pytest_asyncio
 import redis.asyncio as valkey
+from redis.asyncio import from_url
+from redis.maint_notifications import MaintNotificationsConfig
 from testcontainers.redis import RedisContainer
 
 
@@ -31,9 +34,23 @@ def valkey_dsn(redis_container) -> str:
     return f"redis://{host}:{port}/0"
 
 
+@pytest_asyncio.fixture
+async def valkey_client(valkey_dsn: str) -> AsyncGenerator[valkey.Redis, None]:
+    client = await from_url(
+        valkey_dsn,
+        decode_responses=True,
+        socket_timeout=None,
+        socket_keepalive=True,
+        maint_notifications_config=MaintNotificationsConfig(enabled=False),
+    )
+
+    try:
+        yield client
+    finally:
+        await client.aclose()
+
+
 # Чистка базы перед каждым тестом для обеспечения 100% изоляции
 @pytest_asyncio.fixture(autouse=True)
-async def clear_valkey(valkey_dsn):
-    client = valkey.from_url(valkey_dsn)
-    await client.flushdb()
-    await client.aclose()
+async def clear_valkey(valkey_client: valkey.Redis):
+    await valkey_client.flushdb()

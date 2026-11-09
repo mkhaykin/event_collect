@@ -1,8 +1,12 @@
 # apps/device_provider/service.py
 import logging
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Self
+from typing import AsyncGenerator, Self
+
+from redis.asyncio import from_url
+from redis.maint_notifications import MaintNotificationsConfig
 
 from apps.device_provider.loader import (
     DeviceLoader,
@@ -37,21 +41,9 @@ class DeviceProviderService:
         self._repository = repository
         self._notifier = notifier
 
-    async def connect(self) -> None:
-        await self._repository.connect()
-        await self._notifier.connect()
-
-    async def close(self) -> None:
-        await self._repository.close()
-        await self._notifier.close()
-
     async def sync_configuration(self) -> None:
         """Дифференциальная синхронизация конфигурации в Valkey и отправка эвентов."""
         self._logger.debug("Старт синхронизации ...")
-        if self._repository is None:
-            raise RuntimeError("Не подготовили хэндлер")
-        if self._notifier is None:
-            raise RuntimeError("Не подготовили извещатель")
 
         sync_time = datetime.now(timezone.utc).isoformat()
 
@@ -75,33 +67,53 @@ class DeviceProviderService:
                 elif result.action == "none":
                     self._logger.debug("продлен TTL/Heartbeat для %s, изменений нет", uid)
 
-        self._logger.debug("Синхронизация завершена, обработано %s устройств", str(count))
+        self._logger.debug("Изменено или добавлено %s устройств", str(count))
+
+        deleted_devices = await self._repository.clear_deleted_devices()
+        self._logger.debug("%s устройств к удалению", len(deleted_devices))
+        for uid in deleted_devices:
+            await self._notifier.send_device_deleted(uid)
+            self._logger.info("устройство %s удалено", uid)
 
     @classmethod
-    def factory(
+    @asynccontextmanager
+    async def factory(
         cls,
         config_path: str | Path,
         valkey_dsn: str,
         logger: logging.Logger | None = None,
-    ) -> Self:
+    ) -> AsyncGenerator[Self, None]:
+        client = await from_url(
+            valkey_dsn,
+            decode_responses=True,
+            socket_timeout=None,
+            socket_keepalive=True,
+            maint_notifications_config=MaintNotificationsConfig(enabled=False),
+        )
+
         loader = DeviceYamlLoader(
             config_path=config_path,
             logger=logger,
         )
 
         repository = DeviceValkeyRepository(
-            dsn=valkey_dsn,
+            client=client,
             logger=logger,
         )
 
         notifier = DeviceNotificationService(
-            dsn=valkey_dsn,
+            client=client,
             logger=logger,
         )
 
-        return cls(
+        instance = cls(
             loader=loader,
             repository=repository,
             notifier=notifier,
             logger=logger,
         )
+
+        try:
+            yield instance
+        finally:
+            await client.aclose()

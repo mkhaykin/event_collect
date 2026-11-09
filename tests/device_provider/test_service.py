@@ -20,10 +20,10 @@ async def test_service_sync_flows():
     """Тест оркестрации сервиса: проверка разбора результатов 'created' и 'updated'."""
 
     # 1. Создаем моки зависимостей
-    mock_loader = MagicMock()
+    mock_loader = AsyncMock()
     mock_loader.devices = mock_devices_generator
 
-    mock_repo = MagicMock()
+    mock_repo = AsyncMock()
     # Настраиваем поочередный возврат результатов для двух девайсов из генератора
     mock_repo.upsert_device = AsyncMock()
     mock_repo.upsert_device.side_effect = [
@@ -31,7 +31,7 @@ async def test_service_sync_flows():
         Result(action="updated", old_value=DeviceConfig(uid="switch-02", ip="2.2.2.0", check_type="port")),
     ]
 
-    mock_notifier = MagicMock()
+    mock_notifier = AsyncMock()
     mock_notifier.send_device_created = AsyncMock()
     mock_notifier.send_device_updated = AsyncMock()
 
@@ -57,7 +57,7 @@ async def test_service_handles_repository_exception(caplog):
     mock_loader = MagicMock()
     mock_loader.devices = mock_devices_generator
 
-    mock_repo = MagicMock()
+    mock_repo = AsyncMock()
     # Первое устройство падает по ошибке базы, второе проходит успешно
     mock_repo.upsert_device = AsyncMock()
     mock_repo.upsert_device.side_effect = [
@@ -65,7 +65,7 @@ async def test_service_handles_repository_exception(caplog):
         Result(action="none"),
     ]
 
-    mock_notifier = MagicMock()
+    mock_notifier = AsyncMock()
     mock_notifier.send_device_created = AsyncMock()
 
     service = DeviceProviderService(

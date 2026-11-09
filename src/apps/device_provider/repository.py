@@ -1,11 +1,14 @@
 # apps/device_provider/repository.py
+import asyncio
 import logging
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any, AsyncGenerator, Literal
 
 import redis.asyncio as valkey
+from redis.asyncio import from_url
 from redis.maint_notifications import MaintNotificationsConfig
 
+from apps.device_provider.config import config
 from libs.events.models import (
     DeviceConfig,
 )
@@ -33,28 +36,12 @@ class DeviceValkeyRepository:
 
     def __init__(
         self,
-        dsn: str,
+        client: valkey.Redis,
         *,
         logger: logging.Logger | None = None,
     ) -> None:
+        self._client: valkey.Redis = client
         self._logger = logger or NullLogger(__name__)
-
-        self._dsn = dsn
-        self._client: valkey.Redis | None = None
-
-    async def connect(self) -> None:
-        if not self._client:
-            self._client = valkey.from_url(
-                self._dsn,
-                decode_responses=True,
-                socket_timeout=None,
-                socket_keepalive=True,
-                maint_notifications_config=MaintNotificationsConfig(enabled=False),
-            )
-
-    async def close(self) -> None:
-        if self._client:
-            await self._client.aclose()
 
     async def upsert_device(self, device: DeviceConfig, sync_time: str) -> Result:
         """
@@ -85,9 +72,6 @@ class DeviceValkeyRepository:
         device: DeviceConfig,
         updated_at: str,
     ) -> None:
-        if self._client is None:
-            raise RuntimeError("Не подготовлен клиент")
-
         heartbeat_key = self.CONFIG_HEARTBEAT.format(uid=device.uid)
 
         async with self._client.pipeline(transaction=True) as pipe:
@@ -102,9 +86,6 @@ class DeviceValkeyRepository:
         created_at: str,
         updated_at: str,
     ) -> None:
-        if self._client is None:
-            raise RuntimeError("Не подготовлен клиент")
-
         config_key = self.CONFIG_SPECIFIC_DEVICE.format(uid=device.uid)
         heartbeat_key = self.CONFIG_HEARTBEAT.format(uid=device.uid)
 
@@ -129,9 +110,6 @@ class DeviceValkeyRepository:
         self,
         dev: DeviceConfig,
     ) -> tuple[Any, Any, Any]:
-        if self._client is None:
-            raise RuntimeError("Не подготовлен клиент")
-
         config_key = self.CONFIG_SPECIFIC_DEVICE.format(uid=dev.uid)
         heartbeat_key = self.CONFIG_HEARTBEAT.format(uid=dev.uid)
 
@@ -142,3 +120,45 @@ class DeviceValkeyRepository:
             in_all, existing_heartbeat, existing_config, *_ = await pipe.execute()
 
         return existing_config, existing_heartbeat, in_all
+
+    async def clear_deleted_devices(self) -> list[str]:
+        """
+        Возращает список удаленных uid. Сравниваем все что есть в "device:all"
+        и что осталось "device:config:{uid}".
+        """
+        config_keys = self.CONFIG_SPECIFIC_DEVICE.format(uid="*")
+
+        # собираем живые конфиги, так как тут они протухают, те, что не продлевались уже исключены
+        keys: AsyncGenerator = (key async for key in self._client.scan_iter(match=config_keys))
+        uids = {key.split(":")[-1] async for key in keys}
+        deleted = [
+            uid
+            # проходим по множеству все устройств, тут они не протухают
+            async for uid in self._client.sscan_iter(self.CONFIG_ALL_DEVICE)
+            if uid not in uids
+        ]
+        async with self._client.pipeline(transaction=False) as pipe:
+            for uid in deleted:
+                pipe.delete(self.CONFIG_SPECIFIC_DEVICE.format(uid=uid))
+            await pipe.execute()
+        return deleted
+
+
+async def main() -> None:
+    client = await from_url(
+        config.VALKEY_DSN,
+        decode_responses=True,
+        socket_timeout=None,
+        socket_keepalive=True,
+        maint_notifications_config=MaintNotificationsConfig(enabled=False),
+    )
+
+    try:
+        rep = DeviceValkeyRepository(client=client)
+        print(await rep.clear_deleted_devices())
+    finally:
+        await client.aclose()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
