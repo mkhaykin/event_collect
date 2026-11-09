@@ -40,13 +40,13 @@ class DeviceValkeyRepository:
     async def upsert_device(self, device: DeviceConfig, sync_time: str) -> Result:
         """
         Атомарно обновляет стейт одного устройства в базе.
-        Продлевает TTL на 320 секунд для конфига и хартбита.
+        Продлевает TTL на CONFIG_DEVICE_TTL секунд для конфига и хартбита.
         Возвращает вердикт бизнеса: 'created', 'updated' или 'none'.
         """
         # Читаем текущее состояние перед записью в рамках одного сетевого пакета
         existing_config, existing_heartbeat, in_all = await self._cur_state(device)
         stored_model = await self._data_to_model(existing_config)
-        is_mutated = stored_model is not None and stored_model != device
+        is_mutated = stored_model is None or stored_model != device
 
         created_at = existing_heartbeat.get("created_at", sync_time)
 
@@ -59,6 +59,7 @@ class DeviceValkeyRepository:
             return Result("none", new_value=device, old_value=stored_model)
 
         await self._update(device, created_at, sync_time)
+        await self._update_heartbeat(device, sync_time)
         return Result("updated", new_value=device, old_value=stored_model)
 
     async def _update_heartbeat(
@@ -66,12 +67,13 @@ class DeviceValkeyRepository:
         device: DeviceConfig,
         updated_at: str,
     ) -> None:
+        config_key = self.CONFIG_SPECIFIC_DEVICE.format(uid=device.uid)
         heartbeat_key = self.CONFIG_HEARTBEAT.format(uid=device.uid)
 
         async with self._client.pipeline(transaction=True) as pipe:
             pipe.hset(heartbeat_key, mapping={"updated_at": updated_at})
-            pipe.expire(heartbeat_key, self.CONFIG_DEVICE_TTL)
-
+            pipe.expire(heartbeat_key, self.CONFIG_DEVICE_TTL, gt=True)
+            pipe.expire(config_key, self.CONFIG_DEVICE_TTL, gt=True)
             await pipe.execute()
 
     async def _update(
