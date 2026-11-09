@@ -3,7 +3,6 @@ import asyncio
 import logging
 import sys
 
-from apps.device_provider.config import config
 from apps.poller.bus_notifier import StatusBusNotifier
 from apps.poller.checkers import DummyNetworkChecker
 from apps.poller.listener import PollerBusListener
@@ -12,6 +11,7 @@ from apps.poller.repository import PollerValkeyRepository
 from apps.poller.state_machine import DeviceStateMachine
 from apps.poller.ticker import PollerTickerService
 from apps.poller.workers import DeviceNetworkWorker
+from libs.config import config
 from libs.poller.models import DeviceProbeResult
 
 logger = logging.getLogger(__name__)

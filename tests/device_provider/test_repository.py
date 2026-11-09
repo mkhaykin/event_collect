@@ -6,6 +6,7 @@ import pytest_asyncio
 import redis.asyncio as valkey
 
 from apps.device_provider.repository import DeviceValkeyRepository
+from libs.config import config
 from libs.events.models import DeviceConfig
 
 
@@ -35,7 +36,7 @@ async def test_upsert_device_created(repository, valkey_dsn):
     assert config_data is not None
     assert "192.168.1.1" in config_data
 
-    assert await client.ttl("device:config:dev-1") <= 320
+    assert await client.ttl("device:config:dev-1") <= config.CONFIG_DEVICE_TTL
     await client.aclose()
 
 

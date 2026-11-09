@@ -8,7 +8,7 @@ import redis.asyncio as valkey
 from redis.asyncio import from_url
 from redis.maint_notifications import MaintNotificationsConfig
 
-from apps.device_provider.config import config
+from libs.config import config
 from libs.events.models import (
     DeviceConfig,
 )
@@ -23,16 +23,10 @@ class Result:
 
 
 class DeviceValkeyRepository:
-    CONFIG_ALL_DEVICE: str = "device:all"
-    CONFIG_SPECIFIC_DEVICE: str = "device:config:{uid}"
-    CONFIG_HEARTBEAT: str = "device:heartbeat:{uid}"
-    CONFIG_DEVICE_TTL: int = 320
-
-    """
-    device:all — Set.
-    device:config:{uid} — String (json).
-    device:heartbeat:{uid} — Hash.
-    """
+    CONFIG_ALL_DEVICE: str = config.CONFIG_ALL_DEVICE
+    CONFIG_SPECIFIC_DEVICE: str = config.CONFIG_SPECIFIC_DEVICE
+    CONFIG_HEARTBEAT: str = config.CONFIG_HEARTBEAT
+    CONFIG_DEVICE_TTL: int = config.CONFIG_DEVICE_TTL
 
     def __init__(
         self,

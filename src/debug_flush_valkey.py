@@ -4,7 +4,7 @@ import sys
 
 import redis.asyncio as valkey
 
-from apps.device_provider.config import config
+from libs.config import config
 
 logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - [%(levelname)s] - %(message)s")
 logger = logging.getLogger(__name__)

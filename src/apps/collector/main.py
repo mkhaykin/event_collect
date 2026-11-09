@@ -10,7 +10,7 @@ from apps.collector.listener import CollectorBusListener
 from apps.collector.registry import DeviceOnlineRegistry
 from apps.collector.repository import CollectorDummyRepository
 from apps.collector.scheduler import JobScheduler
-from apps.device_provider.config import config
+from libs.config import config
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(

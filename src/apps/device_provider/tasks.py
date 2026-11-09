@@ -5,8 +5,8 @@ from typing import Annotated, AsyncGenerator
 from taskiq import TaskiqDepends
 from taskiq_redis import ListQueueBroker
 
-from apps.device_provider.config import config
 from apps.device_provider.service import DeviceProviderService
+from libs.config import config
 
 broker = ListQueueBroker(
     config.VALKEY_DSN,
