@@ -3,7 +3,6 @@ import asyncio
 import json
 
 import pytest
-import redis.asyncio as valkey
 
 from apps.poller.bus_notifier import StatusBusNotifier
 from apps.poller.listener import PollerBusListener
@@ -20,34 +19,29 @@ CONFIG_EVENT_OFFLINE: str = "events:device_offline"
 
 
 @pytest.mark.asyncio
-async def test_repository_load_start_configs(valkey_dsn):
+async def test_repository_load_start_configs(valkey_client):
     """Интеграционный тест: Проверка пакетной выгрузки конфигураций репозиторием Полллера."""
-    client = valkey.from_url(valkey_dsn, decode_responses=True)
+    client = valkey_client
 
     # Имитируем работу Device Provider: пишем индексы и JSON-строку
     dev = DeviceConfig(uid="router-x", ip="10.0.0.1", check_type="icmp")
     await client.sadd("device:all", "router-x")
     await client.set("device:config:router-x", dev.model_dump_json())
 
-    repo = PollerValkeyRepository(valkey_dsn)
-    await repo.connect()
+    repo = PollerValkeyRepository(valkey_client)
 
     configs = await repo.load_all_active_configs()
     assert len(configs) == 1
     assert configs[0].uid == "router-x"
     assert configs[0].ip == "10.0.0.1"
 
-    await repo.close()
-    await client.aclose()
-
 
 @pytest.mark.asyncio
-async def test_bus_notifier_sends_events_to_valkey(valkey_dsn):
+async def test_bus_notifier_sends_events_to_valkey(valkey_client):
     """Интеграционный тест: Проверка, что StatusBusNotifier физически публикует сообщения в Valkey."""
-    notifier = StatusBusNotifier(valkey_dsn)
-    await notifier.connect()
+    notifier = StatusBusNotifier(valkey_client)
 
-    client = valkey.from_url(valkey_dsn, decode_responses=True)
+    client = valkey_client
     async with client.pubsub() as pubsub:
         await pubsub.subscribe(StatusBusNotifier.CONFIG_EVENT_ONLINE)
 
@@ -60,22 +54,18 @@ async def test_bus_notifier_sends_events_to_valkey(valkey_dsn):
         assert data["uid"] == "dev-online-1"
         assert data["status"] == "online"
 
-    await notifier.close()
-    await client.aclose()
-
 
 @pytest.mark.asyncio
-async def test_bus_listener_runtime_updates(valkey_dsn):
+async def test_bus_listener_runtime_updates(valkey_client):
     """Интеграционный тест: Фоновый слушатель должен на лету менять DeviceRegistry при получении ивентов."""
     registry = DeviceRegistry()
-    listener = PollerBusListener(valkey_dsn, registry)
-    await listener.connect()
+    listener = PollerBusListener(valkey_client, registry)
 
     # Запускаем слушатель в фоне
     listener_task = asyncio.create_task(listener.listen_forever())
     await asyncio.sleep(0.1)  # Даем время на подписку
 
-    client = valkey.from_url(valkey_dsn, decode_responses=True)
+    client = valkey_client
 
     # 1. Тестируем накат события создания устройства
     dev = DeviceConfig(uid="runtime-dev", ip="5.5.5.5", check_type="icmp")
@@ -96,5 +86,3 @@ async def test_bus_listener_runtime_updates(valkey_dsn):
     assert len(snapshot) == 0
 
     listener_task.cancel()
-    await listener.close()
-    await client.aclose()

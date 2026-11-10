@@ -23,3 +23,13 @@ class DeviceState(BaseModel):
     success_streak: int = 0
     fail_streak: int = 0
     next_run_at: float = 0.0  # Unix timestamp следующего запуска
+
+
+class DeviceOnlineEvent(BaseModel):
+    uid: str
+    status: Literal["online", "offline"] = "online"
+
+
+class DeviceOfflineEvent(BaseModel):
+    uid: str
+    status: Literal["online", "offline"] = "online"

@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from apps.poller.ticker import PollerTickerService
+from apps.poller.service import PollerService
 
 
 @pytest.mark.asyncio
@@ -27,7 +27,13 @@ async def test_ticker_fires_only_scheduled_devices():
     mock_sm.get_next_run_time.side_effect = lambda uid: 0.0 if uid == "dev-ready" else current_time + 100.0
     mock_sm.get_probes_config.return_value = 3
 
-    ticker = PollerTickerService(registry=mock_registry, state_machine=mock_sm, worker_pool=mock_worker)
+    ticker = PollerService(
+        registry=mock_registry,
+        state_machine=mock_sm,
+        worker_pool=mock_worker,
+        listener=AsyncMock(),
+        repository=AsyncMock(),
+    )
 
     # Запускаем ОДИН итерационный цикл тикера (вместо бесконечного start_loop)
     # Копируем тело условия из оригинального тикера для одного шага:

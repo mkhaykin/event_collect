@@ -20,31 +20,18 @@ class PollerBusListener:
 
     def __init__(
         self,
-        valkey_url: str,
+        client: valkey.Redis,
         registry: DeviceRegistry,
         *,
         logger: logging.Logger | None = None,
     ) -> None:
         self._logger = logger or NullLogger(__name__)
 
-        self._url = valkey_url
         self._registry = registry
-        self._client: valkey.Redis | None = None
-
-    async def connect(self) -> None:
-        if not self._client:
-            self._client = valkey.from_url(self._url, decode_responses=True)
-
-    async def close(self) -> None:
-        if self._client:
-            await self._client.aclose()
-            self._client = None
+        self._client = client
 
     async def listen_forever(self) -> None:
         """Бесконечный цикл прослушивания шины событий Провайдера."""
-        if not self._client:
-            raise RuntimeError("Слушатель не подключен к ValKey")
-
         async with self._client.pubsub() as pubsub:
             channels = [self.CONFIG_EVENT_CREATED, self.CONFIG_EVENT_UPDATED, self.CONFIG_EVENT_DELETED]
             await pubsub.subscribe(*channels)
