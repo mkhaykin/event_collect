@@ -22,7 +22,7 @@ class Result:
     old_value: DeviceConfig | None = None
 
 
-class DeviceValkeyRepository:
+class DeviceRepository:
     CONFIG_ALL_DEVICE: str = config.CONFIG_ALL_DEVICE
     CONFIG_SPECIFIC_DEVICE: str = config.CONFIG_SPECIFIC_DEVICE
     CONFIG_HEARTBEAT: str = config.CONFIG_HEARTBEAT
@@ -150,7 +150,7 @@ async def main() -> None:
     )
 
     try:
-        rep = DeviceValkeyRepository(client=client)
+        rep = DeviceRepository(client=client)
         print(await rep.clear_deleted_devices())
     finally:
         await client.aclose()

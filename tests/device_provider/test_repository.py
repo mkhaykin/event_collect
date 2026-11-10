@@ -5,7 +5,7 @@ import pytest
 import pytest_asyncio
 import redis.asyncio as valkey
 
-from apps.device_provider.repository import DeviceValkeyRepository
+from apps.device_provider.repository import DeviceRepository
 from libs.config import config
 from libs.events.models import DeviceConfig
 
@@ -13,8 +13,8 @@ from libs.events.models import DeviceConfig
 @pytest_asyncio.fixture
 async def repository(
     valkey_client: valkey.Redis,
-) -> AsyncGenerator[DeviceValkeyRepository, None]:
-    srv = DeviceValkeyRepository(valkey_client)
+) -> AsyncGenerator[DeviceRepository, None]:
+    srv = DeviceRepository(valkey_client)
     yield srv
 
 
