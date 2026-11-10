@@ -5,7 +5,6 @@ import logging
 from typing import Any
 
 import redis.asyncio as valkey
-from redis.maint_notifications import MaintNotificationsConfig
 
 from libs.collector.models import DeviceOfflineCommand, DeviceOnlineCommand
 from libs.config import config
@@ -22,36 +21,16 @@ class CollectorBusListener:
 
     def __init__(
         self,
-        valkey_url: str,
+        client: valkey.Redis,
         internal_queue: asyncio.Queue[Any],
         *,
         logger: logging.Logger | None = None,
     ) -> None:
         self._logger = logger or NullLogger(__name__)
-        self._url = valkey_url
         self._queue = internal_queue
-        self._client: valkey.Redis | None = None
-
-    async def connect(self) -> None:
-        if not self._client:
-            self._client = valkey.from_url(
-                self._url,
-                decode_responses=True,
-                socket_connect_timeout=5,
-                socket_timeout=None,
-                socket_keepalive=True,
-                maint_notifications_config=MaintNotificationsConfig(enabled=False),
-            )
-
-    async def close(self) -> None:
-        if self._client:
-            await self._client.aclose()
-            self._client = None
+        self._client = client
 
     async def listen_forever(self) -> None:
-        if not self._client:
-            raise RuntimeError("CollectorBusListener не подключен к Valkey.")
-
         async with self._client.pubsub() as pubsub:
             channels = [self.CONFIG_EVENT_ONLINE, self.CONFIG_EVENT_OFFLINE]
             await pubsub.subscribe(*channels)

@@ -3,7 +3,6 @@ import asyncio
 import json
 
 import pytest
-import redis.asyncio as valkey
 
 from apps.collector.listener import CollectorBusListener
 from libs.collector.models import DeviceOnlineCommand
@@ -11,18 +10,17 @@ from libs.events.models import DeviceConfig
 
 
 @pytest.mark.asyncio
-async def test_listener_ingests_valkey_events_to_internal_queue(valkey_dsn):
+async def test_listener_ingests_valkey_events_to_internal_queue(valkey_client):
     """Интеграционный тест: Листенер слушает Редис и без потерь транслирует команды в очередь."""
     internal_queue = asyncio.Queue()
 
-    listener = CollectorBusListener(valkey_url=valkey_dsn, internal_queue=internal_queue)
-    await listener.connect()
+    listener = CollectorBusListener(client=valkey_client, internal_queue=internal_queue)
 
     # 1. Запускаем бесконечный I/O слушатель в фоне
     listener_task = asyncio.create_task(listener.listen_forever())
     await asyncio.sleep(0.02)  # Ждем оформления подписки сокета
 
-    client = valkey.from_url(valkey_dsn, decode_responses=True)
+    client = valkey_client
 
     # Имитируем данные Полллера в базе: сохраняем статичный JSON конфига
     dev_config = DeviceConfig(uid="switch-core", ip="10.10.10.10", check_type="icmp", collect_interval_min=15)
@@ -44,5 +42,3 @@ async def test_listener_ingests_valkey_events_to_internal_queue(valkey_dsn):
 
     # Чистим ресурсы
     listener_task.cancel()
-    await listener.close()
-    await client.aclose()

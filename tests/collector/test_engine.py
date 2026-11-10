@@ -24,11 +24,15 @@ async def test_engine_consumes_queue_and_wakes_up():
     wakeup_event = asyncio.Event()
 
     engine = CollectorCoreEngine(
-        scheduler=mock_scheduler, internal_queue=internal_queue, wakeup_event=wakeup_event, db_repo=mock_db
+        scheduler=mock_scheduler,
+        internal_queue=internal_queue,
+        wakeup_event=wakeup_event,
+        db_repo=mock_db,
+        listener=AsyncMock(),
     )
 
     # 1. Запускаем оркестратор. Он выполнит 1-й проход trigger_and_schedule_next и уснет
-    engine_task = asyncio.create_task(engine.start_orchestration())
+    engine_task = asyncio.create_task(engine.start_loop())
     await asyncio.sleep(0.01)  # Даем ему уйти в await wakeup_event.wait()
 
     assert mock_scheduler.trigger_and_schedule_next.call_count == 1
@@ -50,4 +54,3 @@ async def test_engine_consumes_queue_and_wakes_up():
 
     # Чистим таски
     engine_task.cancel()
-    await engine.stop()

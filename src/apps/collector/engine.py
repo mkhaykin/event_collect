@@ -1,8 +1,15 @@
 # apps/collector/engine.py
 import asyncio
 import logging
-from typing import Any
+from contextlib import asynccontextmanager
+from typing import Any, AsyncGenerator, Self
 
+from redis.asyncio import from_url
+from redis.maint_notifications import MaintNotificationsConfig
+
+from apps.collector.actions import DummyCollectAction
+from apps.collector.listener import CollectorBusListener
+from apps.collector.registry import DeviceOnlineRegistry
 from apps.collector.repository import CollectorDummyRepository
 from apps.collector.scheduler import JobScheduler
 from libs.collector.models import DeviceOfflineCommand, DeviceOnlineCommand
@@ -12,12 +19,13 @@ from libs.null_logger import NullLogger
 class CollectorCoreEngine:
     """по сути оркестратор процесса"""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         scheduler: JobScheduler,
         internal_queue: asyncio.Queue[Any],
         wakeup_event: asyncio.Event,
         db_repo: CollectorDummyRepository,
+        listener: CollectorBusListener,
         *,
         logger: logging.Logger | None = None,
     ) -> None:
@@ -26,16 +34,25 @@ class CollectorCoreEngine:
         self._scheduler = scheduler
         self._queue = internal_queue
         self._wakeup_event = wakeup_event
-        self._consumer_task: asyncio.Task[None] | None = None
         self._db_repo = db_repo
+        self._listener = listener
 
-    async def start_orchestration(self) -> None:
+    async def start_loop(self) -> None:
         """Основной цикл"""
         self._logger.info("%s started...", self.__class__.__name__)
 
         # запускаем фоновую вычитку данных из листенера
-        self._consumer_task = asyncio.create_task(self._consume_internal_events())
+        consumer_task = asyncio.create_task(self._consume_internal_events())
+        # слушатель
+        listener_task = asyncio.create_task(self._listener.listen_forever())
 
+        try:
+            await self._loop()
+        finally:
+            consumer_task.cancel()
+            listener_task.cancel()
+
+    async def _loop(self) -> None:
         while True:
             # определяем время сна
             wait_timeout = await self._scheduler.trigger_and_schedule_next()
@@ -57,10 +74,6 @@ class CollectorCoreEngine:
                     await asyncio.wait_for(self._wakeup_event.wait(), timeout=wait_timeout)
                 except asyncio.TimeoutError:
                     continue
-
-    async def stop(self) -> None:
-        if self._consumer_task:
-            self._consumer_task.cancel()
 
     async def _consume_internal_events(self) -> None:
         """ловим события от листенера и добавляем/удаляем устройства из шедулера"""
@@ -95,3 +108,63 @@ class CollectorCoreEngine:
                 )
             finally:
                 self._queue.task_done()
+
+    @classmethod
+    @asynccontextmanager
+    async def factory(
+        cls,
+        valkey_dsn: str,
+        *,
+        logger: logging.Logger | None = None,
+    ) -> AsyncGenerator[Self, None]:
+
+        client = await from_url(
+            valkey_dsn,
+            decode_responses=True,
+            socket_timeout=None,
+            socket_keepalive=True,
+            maint_notifications_config=MaintNotificationsConfig(enabled=False),
+        )
+
+        # событие для подъема основного потока из ожидания
+        wakeup_event = asyncio.Event()
+        # очередь от листера до основного потока
+        internal_queue: asyncio.Queue[Any] = asyncio.Queue()
+
+        # пока пустышка (потом PS)
+        action_plugin = DummyCollectAction(logger=logger)
+        # пока пустышка, потом сохранять инфу в БД
+        db_repo = CollectorDummyRepository(logger=logger)
+
+        registry = DeviceOnlineRegistry(logger=logger)
+
+        # стартует задачи, контролирует расписание
+        scheduler = JobScheduler(
+            action=action_plugin,
+            registry=registry,
+            wakeup_event=wakeup_event,
+            concurrency_limit=20,
+            logger=logger,
+        )
+
+        # листенер, подписан на события поллера (online|offline)
+        bus_listener = CollectorBusListener(
+            client,
+            internal_queue=internal_queue,
+            logger=logger,
+        )
+
+        # само ядро
+        engine = cls(
+            scheduler=scheduler,
+            db_repo=db_repo,
+            internal_queue=internal_queue,
+            wakeup_event=wakeup_event,
+            listener=bus_listener,
+            logger=logger,
+        )
+
+        try:
+            yield engine
+        finally:
+            await client.aclose()
