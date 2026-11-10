@@ -1,4 +1,4 @@
-# apps/collector/engine.py
+# apps/collector/service.py
 import asyncio
 import logging
 from contextlib import asynccontextmanager
@@ -16,7 +16,7 @@ from libs.collector.models import DeviceOfflineCommand, DeviceOnlineCommand
 from libs.null_logger import NullLogger
 
 
-class CollectorCoreEngine:
+class CollectorService:
     """по сути оркестратор процесса"""
 
     def __init__(  # noqa: PLR0913

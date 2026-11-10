@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from apps.collector.engine import CollectorCoreEngine
+from apps.collector.service import CollectorService
 from libs.collector.models import DeviceOnlineCommand
 from libs.events.models import DeviceConfig
 
@@ -23,7 +23,7 @@ async def test_engine_consumes_queue_and_wakes_up():
     internal_queue = asyncio.Queue()
     wakeup_event = asyncio.Event()
 
-    engine = CollectorCoreEngine(
+    engine = CollectorService(
         scheduler=mock_scheduler,
         internal_queue=internal_queue,
         wakeup_event=wakeup_event,

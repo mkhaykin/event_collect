@@ -3,7 +3,7 @@ import asyncio
 import logging
 import sys
 
-from apps.collector.engine import CollectorCoreEngine
+from apps.collector.service import CollectorService
 from libs.config import config
 
 logger = logging.getLogger(__name__)
@@ -19,7 +19,7 @@ VALKEY_URL = config.VALKEY_DSN
 
 
 async def main() -> None:
-    async with CollectorCoreEngine.factory(
+    async with CollectorService.factory(
         config.VALKEY_DSN,
         logger=logger,
     ) as service:
