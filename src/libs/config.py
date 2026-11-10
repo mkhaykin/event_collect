@@ -19,5 +19,11 @@ class Config:
     CONFIG_EVENT_UPDATED: str = "events:device_updated"
     CONFIG_EVENT_DELETED: str = "events:device_deleted"
 
+    CONFIG_EVENT_ONLINE: str = "events:device_online"
+    CONFIG_EVENT_OFFLINE: str = "events:device_offline"
+
+    POLLER_FAIL_COUNT: int = 3
+    POLLER_SUCCESS_COUNT: int = 3
+
 
 config = Config()

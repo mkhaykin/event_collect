@@ -3,6 +3,7 @@ import asyncio
 import logging
 from typing import Protocol
 
+from libs.config import config
 from libs.null_logger import NullLogger
 from libs.poller.models import DeviceProbeResult, DeviceState
 
@@ -19,8 +20,8 @@ class DeviceStateMachine:
     """Управляет состоянием устройств. Слушает очередь результатов и
     отправляет изменение состояния в notifier"""
 
-    FAIL_COUNT = 3
-    SUCCESS_COUNT = 3
+    FAIL_COUNT: int = config.POLLER_FAIL_COUNT
+    SUCCESS_COUNT: int = config.POLLER_SUCCESS_COUNT
 
     def __init__(
         self,

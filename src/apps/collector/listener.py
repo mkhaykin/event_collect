@@ -8,6 +8,7 @@ import redis.asyncio as valkey
 from redis.maint_notifications import MaintNotificationsConfig
 
 from libs.collector.models import DeviceOfflineCommand, DeviceOnlineCommand
+from libs.config import config
 from libs.events.models import DeviceConfig
 from libs.null_logger import NullLogger
 
@@ -15,9 +16,9 @@ from libs.null_logger import NullLogger
 class CollectorBusListener:
     """Фоновый подписчик на Pub/Sub шину Poller."""
 
-    CONFIG_EVENT_ONLINE: str = "events:device_online"
-    CONFIG_EVENT_OFFLINE: str = "events:device_offline"
-    CONFIG_SPECIFIC_DEVICE: str = "device:config:{uid}"
+    CONFIG_EVENT_ONLINE: str = config.CONFIG_EVENT_ONLINE
+    CONFIG_EVENT_OFFLINE: str = config.CONFIG_EVENT_OFFLINE
+    CONFIG_SPECIFIC_DEVICE: str = config.CONFIG_SPECIFIC_DEVICE
 
     def __init__(
         self,

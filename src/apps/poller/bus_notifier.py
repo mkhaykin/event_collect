@@ -4,12 +4,13 @@ import logging
 
 import redis.asyncio as valkey
 
+from libs.config import config
 from libs.null_logger import NullLogger
 
 
 class StatusBusNotifier:
-    CONFIG_EVENT_ONLINE: str = "events:device_online"
-    CONFIG_EVENT_OFFLINE: str = "events:device_offline"
+    CONFIG_EVENT_ONLINE: str = config.CONFIG_EVENT_ONLINE
+    CONFIG_EVENT_OFFLINE: str = config.CONFIG_EVENT_OFFLINE
 
     def __init__(
         self,

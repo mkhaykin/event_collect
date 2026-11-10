@@ -4,13 +4,14 @@ import logging
 import redis.asyncio as valkey
 from pydantic import ValidationError
 
+from libs.config import config
 from libs.events.models import DeviceConfig
 from libs.null_logger import NullLogger
 
 
 class PollerValkeyRepository:
-    CONFIG_ALL_DEVICE: str = "device:all"
-    CONFIG_SPECIFIC_DEVICE: str = "device:config:{uid}"
+    CONFIG_ALL_DEVICE: str = config.CONFIG_ALL_DEVICE
+    CONFIG_SPECIFIC_DEVICE: str = config.CONFIG_SPECIFIC_DEVICE
 
     def __init__(
         self,

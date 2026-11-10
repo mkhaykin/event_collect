@@ -6,6 +6,7 @@ import logging
 import redis.asyncio as valkey
 
 from apps.poller.registry import DeviceRegistry
+from libs.config import config
 from libs.events.models import (
     DeviceConfig,
 )
@@ -13,9 +14,9 @@ from libs.null_logger import NullLogger
 
 
 class PollerBusListener:
-    CONFIG_EVENT_CREATED: str = "events:device_created"
-    CONFIG_EVENT_UPDATED: str = "events:device_updated"
-    CONFIG_EVENT_DELETED: str = "events:device_deleted"
+    CONFIG_EVENT_CREATED: str = config.CONFIG_EVENT_CREATED
+    CONFIG_EVENT_UPDATED: str = config.CONFIG_EVENT_UPDATED
+    CONFIG_EVENT_DELETED: str = config.CONFIG_EVENT_DELETED
 
     def __init__(
         self,
