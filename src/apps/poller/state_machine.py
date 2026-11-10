@@ -27,6 +27,7 @@ class DeviceStateMachine:
         self,
         notifier: StatusBusNotifier,
         result_queue: asyncio.Queue[DeviceProbeResult],
+        *,
         logger: logging.Logger | None = None,
     ) -> None:
         self._logger = logger or NullLogger(__name__)
