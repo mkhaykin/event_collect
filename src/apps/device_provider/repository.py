@@ -135,7 +135,11 @@ class DeviceRepository:
         ]
         async with self._client.pipeline(transaction=False) as pipe:
             for uid in deleted:
-                pipe.delete(self.CONFIG_SPECIFIC_DEVICE.format(uid=uid))
+                pipe.srem(self.CONFIG_ALL_DEVICE, uid)
+                config_key = self.CONFIG_SPECIFIC_DEVICE.format(uid=uid)
+                heartbeat_key = self.CONFIG_HEARTBEAT.format(uid=uid)
+                pipe.delete(config_key)
+                pipe.delete(heartbeat_key)
             await pipe.execute()
         return deleted
 
