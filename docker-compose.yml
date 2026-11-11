@@ -21,6 +21,8 @@ services:
   valkey:
     image: valkey/valkey:8.0-alpine
     container_name: valkey
+    environment:
+      - VALKEY_ARGS=--maxmemory-policy noeviction
     ports:
       - "${VALKEY_PORT}:6379"
     healthcheck:
