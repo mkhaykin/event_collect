@@ -9,6 +9,7 @@ from libs.events.models import DeviceConfig
 from libs.null_logger import NullLogger
 
 
+# TODO похоже все пойдет в общий класс? Подумать!
 class PollerValkeyRepository:
     CONFIG_ALL_DEVICE: str = config.CONFIG_ALL_DEVICE
     CONFIG_SPECIFIC_DEVICE: str = config.CONFIG_SPECIFIC_DEVICE

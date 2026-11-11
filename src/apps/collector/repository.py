@@ -5,6 +5,7 @@ import logging
 from libs.null_logger import NullLogger
 
 
+# TODO переименовать, это не репозиторий, это скорее store. А репозиторий будет отдельно
 class CollectorDummyRepository:
     """репозиторий истории состояний в Postgres (заглушка)."""
 

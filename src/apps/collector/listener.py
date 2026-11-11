@@ -12,8 +12,10 @@ from libs.events.models import DeviceConfig
 from libs.null_logger import NullLogger
 
 
+# TODO похоже я тут и слушаю и получаю устройство, не гуд. Получать надо через репозиторий!
 class CollectorBusListener:
-    """Фоновый подписчик на Pub/Sub шину Poller."""
+    """Фоновый подписчик на Pub/Sub шину Poller. Получает событие, расширяет данные (делает запрос сам)
+    и бросает в локальную очередь."""
 
     CONFIG_EVENT_ONLINE: str = config.CONFIG_EVENT_ONLINE
     CONFIG_EVENT_OFFLINE: str = config.CONFIG_EVENT_OFFLINE
@@ -42,7 +44,9 @@ class CollectorBusListener:
                         continue
 
                     channel = message["channel"]
-                    data = json.loads(message["data"])
+                    data = json.loads(
+                        message["data"],
+                    )  # TODO тут надо преобразовать в модельки! DeviceOnlineEvent
                     uid = data.get("uid")
 
                     if not uid:
