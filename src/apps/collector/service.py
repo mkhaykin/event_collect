@@ -16,66 +16,26 @@ from libs.collector.models import DeviceOfflineCommand, DeviceOnlineCommand
 from libs.null_logger import NullLogger
 
 
-class CollectorService:
-    """по сути оркестратор процесса"""
+class SomeClass:
+    """Слушает локальную очередь, при получении сообщения выставляет событие
+    Проснись для основного цикла, добавляет в устройства в репозиторий"""
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         scheduler: JobScheduler,
         internal_queue: asyncio.Queue[Any],
         wakeup_event: asyncio.Event,
         db_repo: CollectorDummyRepository,
-        listener: CollectorBusListener,
         *,
         logger: logging.Logger | None = None,
     ) -> None:
         self._logger = logger or NullLogger(__name__)
-
         self._scheduler = scheduler
         self._queue = internal_queue
-        self._wakeup_event = wakeup_event
         self._db_repo = db_repo
-        self._listener = listener
+        self._wakeup_event = wakeup_event
 
     async def start_loop(self) -> None:
-        """Основной цикл"""
-        self._logger.info("%s started...", self.__class__.__name__)
-
-        # запускаем фоновую вычитку данных из листенера
-        consumer_task = asyncio.create_task(self._consume_internal_events())
-        # слушатель
-        listener_task = asyncio.create_task(self._listener.listen_forever())
-
-        try:
-            await self._loop()
-        finally:
-            consumer_task.cancel()
-            listener_task.cancel()
-
-    async def _loop(self) -> None:
-        while True:
-            # определяем время сна
-            wait_timeout = await self._scheduler.trigger_and_schedule_next()
-            self._wakeup_event.clear()
-
-            if wait_timeout is None:
-                self._logger.debug(
-                    "%s: расписание пусто. ждем-с...",
-                    self.__class__.__name__,
-                )
-                await self._wakeup_event.wait()
-            else:
-                try:
-                    self._logger.debug(
-                        "%s: спать на %.2f сек...",
-                        self.__class__.__name__,
-                        wait_timeout,
-                    )
-                    await asyncio.wait_for(self._wakeup_event.wait(), timeout=wait_timeout)
-                except asyncio.TimeoutError:
-                    continue
-
-    async def _consume_internal_events(self) -> None:
         """ловим события от листенера и добавляем/удаляем устройства из шедулера"""
         while True:
             cmd = await self._queue.get()
@@ -108,6 +68,68 @@ class CollectorService:
                 )
             finally:
                 self._queue.task_done()
+
+
+class CollectorService:
+    """по сути оркестратор процесса"""
+
+    def __init__(  # noqa: PLR0913 PLR0917
+        self,
+        scheduler: JobScheduler,
+        internal_queue: asyncio.Queue[Any],
+        wakeup_event: asyncio.Event,
+        db_repo: CollectorDummyRepository,
+        listener: CollectorBusListener,
+        queue_processor: SomeClass,
+        *,
+        logger: logging.Logger | None = None,
+    ) -> None:
+        self._logger = logger or NullLogger(__name__)
+
+        self._scheduler = scheduler
+        self._queue = internal_queue
+        self._wakeup_event = wakeup_event
+        self._db_repo = db_repo
+        self._listener = listener
+        self._queue_processor = queue_processor
+
+    async def start_loop(self) -> None:
+        """Основной цикл"""
+        self._logger.info("%s started...", self.__class__.__name__)
+
+        # запускаем фоновую вычитку данных из листенера
+        consumer_task = asyncio.create_task(self._queue_processor.start_loop())
+        # слушатель
+        listener_task = asyncio.create_task(self._listener.listen_forever())
+
+        try:
+            await self._loop()
+        finally:
+            consumer_task.cancel()
+            listener_task.cancel()
+
+    async def _loop(self) -> None:
+        while True:
+            # определяем время сна
+            wait_timeout = await self._scheduler.trigger_and_schedule_next()
+            self._wakeup_event.clear()
+
+            if wait_timeout is None:
+                self._logger.debug(
+                    "%s: расписание пусто. ждем-с...",
+                    self.__class__.__name__,
+                )
+                await self._wakeup_event.wait()
+            else:
+                try:
+                    self._logger.debug(
+                        "%s: спать на %.2f сек...",
+                        self.__class__.__name__,
+                        wait_timeout,
+                    )
+                    await asyncio.wait_for(self._wakeup_event.wait(), timeout=wait_timeout)
+                except asyncio.TimeoutError:
+                    continue
 
     @classmethod
     @asynccontextmanager
@@ -154,6 +176,13 @@ class CollectorService:
             logger=logger,
         )
 
+        some_class = SomeClass(
+            scheduler=scheduler,
+            internal_queue=internal_queue,
+            wakeup_event=wakeup_event,
+            db_repo=db_repo,
+        )
+
         # само ядро
         engine = cls(
             scheduler=scheduler,
@@ -161,6 +190,7 @@ class CollectorService:
             internal_queue=internal_queue,
             wakeup_event=wakeup_event,
             listener=bus_listener,
+            queue_processor=some_class,
             logger=logger,
         )
 

@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from apps.collector.service import CollectorService
+from apps.collector.service import CollectorService, SomeClass
 from libs.collector.models import DeviceOnlineCommand
 from libs.events.models import DeviceConfig
 
@@ -29,6 +29,12 @@ async def test_engine_consumes_queue_and_wakes_up():
         wakeup_event=wakeup_event,
         db_repo=mock_db,
         listener=AsyncMock(),
+        queue_processor=SomeClass(
+            scheduler=mock_scheduler,
+            internal_queue=internal_queue,
+            wakeup_event=wakeup_event,
+            db_repo=mock_db,
+        ),
     )
 
     # 1. Запускаем оркестратор. Он выполнит 1-й проход trigger_and_schedule_next и уснет
