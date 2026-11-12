@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any, AsyncGenerator, Literal
 
 import redis.asyncio as valkey
+from pydantic import ValidationError
 from redis.asyncio import from_url
 from redis.maint_notifications import MaintNotificationsConfig
 
@@ -22,7 +23,7 @@ class Result:
     old_value: DeviceConfig | None = None
 
 
-class DeviceRepository:
+class DeviceConfigRepository:
     CONFIG_ALL_DEVICE: str = config.CONFIG_ALL_DEVICE
     CONFIG_SPECIFIC_DEVICE: str = config.CONFIG_SPECIFIC_DEVICE
     CONFIG_HEARTBEAT: str = config.CONFIG_HEARTBEAT
@@ -143,6 +144,28 @@ class DeviceRepository:
             await pipe.execute()
         return deleted
 
+    async def load_all_active_configs(self) -> list[DeviceConfig]:
+        """Пакетная выгрузка всего слепка конфигураций при старте."""
+        uids = await self._client.smembers(self.CONFIG_ALL_DEVICE)
+        if not uids:
+            return []
+
+        # TODO подумать: try?
+        async with self._client.pipeline(transaction=False) as pipe:
+            for uid in uids:
+                pipe.get(self.CONFIG_SPECIFIC_DEVICE.format(uid=uid))
+            raw_jsons = await pipe.execute()
+
+        configs = []
+        for raw in raw_jsons:
+            if raw:
+                try:
+                    configs.append(DeviceConfig.model_validate_json(raw))
+                except ValidationError:
+                    self._logger.exception("Ошибка загрузки модели")
+                    continue
+        return configs
+
 
 async def main() -> None:
     client = await from_url(
@@ -154,7 +177,7 @@ async def main() -> None:
     )
 
     try:
-        rep = DeviceRepository(client=client)
+        rep = DeviceConfigRepository(client=client)
         print(await rep.clear_deleted_devices())
     finally:
         await client.aclose()

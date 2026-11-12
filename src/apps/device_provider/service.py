@@ -13,7 +13,7 @@ from apps.device_provider.loader import (
     DeviceYamlLoader,
 )
 from apps.device_provider.notifier import DeviceNotificationService
-from apps.device_provider.repository import DeviceRepository
+from apps.device_provider.repository import DeviceConfigRepository
 from libs.events.models import (
     DeviceConfig,
 )
@@ -23,14 +23,14 @@ from libs.null_logger import NullLogger
 class DeviceProviderService:
     _loader: DeviceLoader
     _notifier: DeviceNotificationService
-    _repository: DeviceRepository
+    _repository: DeviceConfigRepository
 
     _logger: logging.Logger
 
     def __init__(
         self,
         loader: DeviceLoader,
-        repository: DeviceRepository,
+        repository: DeviceConfigRepository,
         notifier: DeviceNotificationService,
         *,
         logger: logging.Logger | None = None,
@@ -96,7 +96,7 @@ class DeviceProviderService:
             logger=logger,
         )
 
-        repository = DeviceRepository(
+        repository = DeviceConfigRepository(
             client=client,
             logger=logger,
         )

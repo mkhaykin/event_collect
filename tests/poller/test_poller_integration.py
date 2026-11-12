@@ -4,10 +4,10 @@ import json
 
 import pytest
 
+from apps.device_provider.repository import DeviceConfigRepository
 from apps.poller.bus_notifier import StatusBusNotifier
 from apps.poller.listener import PollerBusListener
 from apps.poller.registry import DeviceRegistry
-from apps.poller.repository import PollerValkeyRepository
 from libs.events.models import DeviceConfig
 
 CONFIG_EVENT_CREATED: str = "events:device_created"
@@ -28,7 +28,7 @@ async def test_repository_load_start_configs(valkey_client):
     await client.sadd("device:all", "router-x")
     await client.set("device:config:router-x", dev.model_dump_json())
 
-    repo = PollerValkeyRepository(valkey_client)
+    repo = DeviceConfigRepository(valkey_client)
 
     configs = await repo.load_all_active_configs()
     assert len(configs) == 1

@@ -8,11 +8,11 @@ from typing import AsyncGenerator, Self
 from redis.asyncio import from_url
 from redis.maint_notifications import MaintNotificationsConfig
 
+from apps.device_provider.repository import DeviceConfigRepository
 from apps.poller.bus_notifier import StatusBusNotifier
 from apps.poller.checkers import IcmpChecker
 from apps.poller.listener import PollerBusListener
 from apps.poller.registry import DeviceRegistry
-from apps.poller.repository import PollerValkeyRepository
 from apps.poller.state_machine import DeviceStateMachine
 from apps.poller.workers import DeviceNetworkWorker
 from libs.events.models import DeviceConfig
@@ -29,7 +29,7 @@ class PollerService:
         state_machine: DeviceStateMachine,
         worker_pool: DeviceNetworkWorker,
         listener: PollerBusListener,
-        repository: PollerValkeyRepository,
+        repository: DeviceConfigRepository,
         *,
         concurrency_limit: int = 1000,
         logger: logging.Logger | None = None,
@@ -118,7 +118,7 @@ class PollerService:
             maint_notifications_config=MaintNotificationsConfig(enabled=False),
         )
 
-        repository = PollerValkeyRepository(
+        repository = DeviceConfigRepository(
             client,
             logger=logger,
         )
