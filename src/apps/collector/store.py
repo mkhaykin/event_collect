@@ -1,12 +1,11 @@
-# apps/collector/repository.py
+# apps/collector/store.py
 
 import logging
 
 from libs.null_logger import NullLogger
 
 
-# TODO переименовать, это не репозиторий, это скорее store. А репозиторий будет отдельно
-class CollectorDummyRepository:
+class CollectorStatusStore:
     """репозиторий истории состояний в Postgres (заглушка)."""
 
     def __init__(self, *, logger: logging.Logger | None = None) -> None:

@@ -10,8 +10,8 @@ from redis.maint_notifications import MaintNotificationsConfig
 from apps.collector.actions import DummyCollectAction
 from apps.collector.listener import CollectorBusListener
 from apps.collector.registry import DeviceOnlineRegistry
-from apps.collector.repository import CollectorDummyRepository
 from apps.collector.scheduler import JobScheduler
+from apps.collector.store import CollectorStatusStore
 from libs.collector.models import DeviceOfflineCommand, DeviceOnlineCommand
 from libs.null_logger import NullLogger
 
@@ -25,7 +25,7 @@ class SomeClass:
         scheduler: JobScheduler,
         internal_queue: asyncio.Queue[Any],
         wakeup_event: asyncio.Event,
-        db_repo: CollectorDummyRepository,
+        db_repo: CollectorStatusStore,
         *,
         logger: logging.Logger | None = None,
     ) -> None:
@@ -78,7 +78,7 @@ class CollectorService:
         scheduler: JobScheduler,
         internal_queue: asyncio.Queue[Any],
         wakeup_event: asyncio.Event,
-        db_repo: CollectorDummyRepository,
+        db_repo: CollectorStatusStore,
         listener: CollectorBusListener,
         queue_processor: SomeClass,
         *,
@@ -156,7 +156,7 @@ class CollectorService:
         # пока пустышка (потом PS)
         action_plugin = DummyCollectAction(logger=logger)
         # пока пустышка, потом сохранять инфу в БД
-        db_repo = CollectorDummyRepository(logger=logger)
+        db_repo = CollectorStatusStore(logger=logger)
 
         registry = DeviceOnlineRegistry(logger=logger)
 
