@@ -166,6 +166,18 @@ class DeviceConfigRepository:
                     continue
         return configs
 
+    async def get_device_config(self, uid: str) -> DeviceConfig | None:
+        raw_data = await self._client.get(self.CONFIG_SPECIFIC_DEVICE.format(uid=uid))
+        if not raw_data:
+            self._logger.warning("Конфигурация для устройства %s не найдена в Valkey", uid)
+            return None
+
+        try:
+            return DeviceConfig.model_validate_json(raw_data)
+        except Exception:
+            self._logger.exception("Ошибка валидации конфигурации для %s", uid)
+            return None
+
 
 async def main() -> None:
     client = await from_url(

@@ -36,9 +36,7 @@ async def test_listener_ingests_valkey_events_to_internal_queue(valkey_client):
     command = await internal_queue.get()
 
     assert isinstance(command, DeviceOnlineCommand)
-    assert command.device.uid == "switch-core"
-    assert command.device.ip == "10.10.10.10"
-    assert command.device.collect_interval_min == 15
+    assert command.uid == "switch-core"
 
     # Чистим ресурсы
     listener_task.cancel()

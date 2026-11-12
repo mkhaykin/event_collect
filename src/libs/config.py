@@ -25,5 +25,7 @@ class Config:
     POLLER_FAIL_COUNT: int = 3
     POLLER_SUCCESS_COUNT: int = 3
 
+    CONCURRENCY_LIMIT: int = 20
+
 
 config = Config()

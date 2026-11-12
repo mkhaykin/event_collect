@@ -1,96 +1,90 @@
 # tests/collector/test_scheduler.py
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
-import pytest
-
-from apps.collector.registry import DeviceOnlineRegistry
 from apps.collector.scheduler import JobScheduler
-from libs.collector.models import CollectResult
-from libs.events.models import DeviceConfig
 
 
-@pytest.mark.asyncio
-@patch("time.time", return_value=1700000000.0)
-async def test_scheduler_optimistic_shift(mock_time):
-    """Проверка, что планировщик оптимистично переносит время запуска вперед ДО старта задачи."""
-    wakeup_event = asyncio.Event()
-    registry = DeviceOnlineRegistry()
+def test_scheduler_register_and_due_jobs():
+    """Проверка регистрации устройства и отбора готовых к запуску задач."""
+    scheduler = JobScheduler()
 
-    mock_action = MagicMock()
-    mock_action.execute = AsyncMock(
-        return_value=CollectResult(uid="dev-1", is_success=True, execution_time_sec=0.1)
-    )
-
-    scheduler = JobScheduler(action=mock_action, registry=registry, wakeup_event=wakeup_event)
-    dev = DeviceConfig(uid="dev-1", ip="1.1.1.1", check_type="icmp", collect_interval_min=5)
-
-    await scheduler.add_device(dev)
-
-    # Запускаем триггер. Время следующего запуска должно прыгнуть на 5 минут вперед (300 секунд)
-    wait_time = await scheduler.trigger_and_schedule_next()
-
-    assert scheduler._schedule["dev-1"] == 1700000000.0 + 300.0
-    assert wait_time == 300.0
-
-    # Даем фоновой таске отработать
-    await asyncio.sleep(0.01)
-    mock_action.execute.assert_called_once_with(dev)
-
-
-@pytest.mark.asyncio
-async def test_scheduler_reactive_retry_on_failure():
-    """Проверка, что при сбое сбора расписание реактивно сокращается до 60 секунд."""
-    wakeup_event = asyncio.Event()
-    registry = DeviceOnlineRegistry()
-
-    mock_action = MagicMock()
-    # Имитируем сбой сбора данных
-    mock_action.execute = AsyncMock(return_value=CollectResult(uid="dev-fail", is_success=False))
-
-    scheduler = JobScheduler(action=mock_action, registry=registry, wakeup_event=wakeup_event)
-    dev = DeviceConfig(uid="dev-fail", ip="1.1.1.1", check_type="icmp", collect_interval_min=30)
-
-    # Жестко фиксируем время старта через patch контекста
     with patch("time.time", return_value=1000.0):
-        await scheduler.add_device(dev)
-        await scheduler.trigger_and_schedule_next()
+        # Регистрируем с немедленным запуском
+        scheduler.register("dev-now", interval=300)
+        # Регистрируем с отложенным запуском в будущем
+        scheduler.register("dev-future", interval=300, next_run=1050.0)
 
-    # Воркер упал в фоне. Ждем выполнения `_safe_execute_launcher`
-    with patch("time.time", return_value=1001.0):
-        await asyncio.sleep(0.02)
-
-        # Расписание должно скорректироваться на 1001.0 (время падения) + 60 секунд
-        assert scheduler._schedule["dev-fail"] == 1061.0
-        assert wakeup_event.is_set()  # Движок разбужен для пересчета сна
+        due = scheduler.get_due_jobs(current_time=1000.0)
+        assert due == ["dev-now"]
 
 
-@pytest.mark.asyncio
-async def test_scheduler_ghost_device_protection():
-    """Крайний случай: Если устройство удалили через remove_device во время опроса,
-    воркер после падения не должен вернуть его в расписание."""
-    wakeup_event = asyncio.Event()
-    registry = DeviceOnlineRegistry()
+def test_scheduler_running_lock_prevents_duplicate_runs():
+    """Крайний случай: Пока задача помечена как running, она не должна попадать в get_due_jobs."""
+    scheduler = JobScheduler()
 
-    mock_action = MagicMock()
-    # Имитируем, что сбор данных провалился
-    mock_action.execute = AsyncMock(return_value=CollectResult(uid="ghost", is_success=False))
+    with patch("time.time", return_value=1000.0):
+        scheduler.register("dev-1", interval=60)
 
-    scheduler = JobScheduler(action=mock_action, registry=registry, wakeup_event=wakeup_event)
-    dev = DeviceConfig(uid="ghost", ip="1.1.1.1", check_type="icmp", collect_interval_min=5)
+        # Помечаем задачу запущенной
+        scheduler.mark_started("dev-1")
 
-    # 1. Добавляем устройство и ставим в расписание
-    await scheduler.add_device(dev)
-    await scheduler.trigger_and_schedule_next()
+        # Даже если время пошло вперед, пока задача не завершена, повторно её не отдаем
+        assert scheduler.get_due_jobs(current_time=1010.0) == []
+        # И при расчете времени сна running-задачи игнорируются
+        assert scheduler.seconds_until_next() is None
 
-    # 2. ИСПРАВЛЕНИЕ: Имитируем реальное поведение Движка —
-    # удаляем устройство через Шедулер, пока воркер крутится в фоне!
-    # Это сотрет девайс и из реестра, и из карты self._schedule
-    await scheduler.remove_device("ghost")
 
-    # 3. Даем фоновому воркеру завершиться
-    await asyncio.sleep(0.02)
+def test_scheduler_mark_finished_success_and_retry():
+    """Проверка пересчета расписания при успешном завершении и при сбое (ретрае)."""
+    scheduler = JobScheduler()
 
-    # ПРОВЕРКА: Проверка 'if device.uid in self._schedule' должна была защитить нас,
-    # и устройство не должно было воскреснуть в расписании
-    assert "ghost" not in scheduler._schedule
+    with patch("time.time", return_value=1000.0):
+        scheduler.register("dev-1", interval=300)
+        scheduler.mark_started("dev-1")
+
+    # 1. Успешное завершение в момент 1005.0 -> следующий запуск через 300 сек (в 1305.0)
+    with patch("time.time", return_value=1005.0):
+        scheduler.mark_finished("dev-1", is_success=True, retry_delay_sec=60)
+        assert scheduler._jobs["dev-1"].next_run == 1305.0
+        assert "dev-1" not in scheduler._running
+
+    # 2. Сбой выполнения в момент 1310.0 -> следующий запуск через retry_delay_sec (в 1370.0)
+    scheduler.mark_started("dev-1")
+    with patch("time.time", return_value=1310.0):
+        scheduler.mark_finished("dev-1", is_success=False, retry_delay_sec=60)
+        assert scheduler._jobs["dev-1"].next_run == 1370.0
+
+
+def test_scheduler_ghost_device_protection():
+    """Крайний случай: Если устройство удалили во время выполнения, mark_finished не воскресит его."""
+    scheduler = JobScheduler()
+
+    scheduler.register("ghost", interval=300)
+    scheduler.mark_started("ghost")
+
+    # Имитируем приход OFFLINE и удаление во время работы воркера
+    scheduler.remove("ghost")
+
+    # Воркер завершается
+    scheduler.mark_finished("ghost", is_success=False, retry_delay_sec=60)
+
+    assert "ghost" not in scheduler._jobs
+    assert "ghost" not in scheduler._running
+
+
+def test_scheduler_seconds_until_next():
+    """Проверка точного расчета времени сна до ближайшей задачи."""
+    scheduler = JobScheduler()
+
+    # Пустое расписание возвращает None
+    assert scheduler.seconds_until_next() is None
+
+    scheduler.register("dev-later", interval=300, next_run=1100.0)
+    scheduler.register("dev-sooner", interval=300, next_run=1025.0)
+
+    with patch("time.time", return_value=1000.0):
+        assert scheduler.seconds_until_next() == 25.0
+
+    # Если время задачи уже прошло, сон должен быть строго 0.0 (без отрицательных значений)
+    with patch("time.time", return_value=1030.0):
+        assert scheduler.seconds_until_next() == 0.0

@@ -5,10 +5,8 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from libs.events.models import DeviceConfig
 
-
-# @dataclass(frozen=True)
+@dataclass(frozen=True)
 class CollectResult(BaseModel):
     """Стандартизированная модель результатов сбора данных."""
 
@@ -23,7 +21,7 @@ class CollectResult(BaseModel):
 class DeviceOnlineCommand:
     """Внутренняя команда на постановку устройства в расписание."""
 
-    device: DeviceConfig
+    uid: str
     received_at: float = time.time()
 
 
@@ -33,3 +31,12 @@ class DeviceOfflineCommand:
 
     uid: str
     received_at: float = time.time()
+
+
+@dataclass(frozen=True)
+class JobFinishedCommand:
+    """Команда завершения выполнения задачи сбора для обновления JobScheduler."""
+
+    uid: str
+    is_success: bool
+    result: CollectResult | None = None

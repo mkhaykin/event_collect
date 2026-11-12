@@ -8,18 +8,15 @@ import redis.asyncio as valkey
 
 from libs.collector.models import DeviceOfflineCommand, DeviceOnlineCommand
 from libs.config import config
-from libs.events.models import DeviceConfig
 from libs.null_logger import NullLogger
 
 
-# TODO похоже я тут и слушаю и получаю устройство, не гуд. Получать надо через репозиторий!
 class CollectorBusListener:
-    """Фоновый подписчик на Pub/Sub шину Poller. Получает событие, расширяет данные (делает запрос сам)
-    и бросает в локальную очередь."""
+    """Фоновый подписчик на Pub/Sub шину Poller.
+    Получает событие и бросает в локальную очередь."""
 
     CONFIG_EVENT_ONLINE: str = config.CONFIG_EVENT_ONLINE
     CONFIG_EVENT_OFFLINE: str = config.CONFIG_EVENT_OFFLINE
-    CONFIG_SPECIFIC_DEVICE: str = config.CONFIG_SPECIFIC_DEVICE
 
     def __init__(
         self,
@@ -44,19 +41,25 @@ class CollectorBusListener:
                         continue
 
                     channel = message["channel"]
-                    data = json.loads(
-                        message["data"],
-                    )  # TODO тут надо преобразовать в модельки! DeviceOnlineEvent
+                    try:
+                        data = json.loads(
+                            message["data"],
+                        )
+                    except json.decoder.JSONDecodeError:
+                        self._logger.error(
+                            "Получен невалидный JSON в канале %s: %s",
+                            channel,
+                            str(message.get("data", ""))[:50],
+                        )
+                        continue
+
                     uid = data.get("uid")
 
                     if not uid:
                         continue
 
                     if channel == self.CONFIG_EVENT_ONLINE:
-                        raw_config = await self._client.get(self.CONFIG_SPECIFIC_DEVICE.format(uid=uid))
-                        if raw_config:
-                            dev = DeviceConfig.model_validate_json(raw_config)
-                            await self._queue.put(DeviceOnlineCommand(device=dev))
+                        await self._queue.put(DeviceOnlineCommand(uid=uid))
 
                     elif channel == self.CONFIG_EVENT_OFFLINE:
                         await self._queue.put(DeviceOfflineCommand(uid=uid))

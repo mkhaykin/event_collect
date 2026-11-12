@@ -1,96 +1,105 @@
 # apps/collector/scheduler.py
-import asyncio
 import logging
 import time
-from typing import Optional
+from dataclasses import dataclass
 
-from apps.collector.actions import CollectAction
-from apps.collector.registry import DeviceOnlineRegistry
-from libs.collector.models import CollectResult
-from libs.events.models import DeviceConfig
 from libs.null_logger import NullLogger
 
 
-class JobScheduler:
-    """Активный планировщик задач. Хозяин Реестра ОЗУ и расписания сборов."""
+@dataclass
+class JobInfo:
+    next_run: float | int
+    interval: float | int
 
+
+class JobScheduler:
+    # TODO подумать над тем, что сделать под многопоточку
     def __init__(
         self,
-        action: CollectAction,
-        registry: DeviceOnlineRegistry,
-        wakeup_event: asyncio.Event,
-        concurrency_limit: int = 20,
         *,
         logger: logging.Logger | None = None,
     ) -> None:
         self._logger = logger or NullLogger(__name__)
-        self._action = action
-        self._wakeup_event = wakeup_event
-        self._semaphore = asyncio.Semaphore(concurrency_limit)
 
-        self._registry: DeviceOnlineRegistry = registry
-        self._schedule: dict[str, float] = {}
-        self._lock = asyncio.Lock()
+        self._jobs: dict[str, JobInfo] = {}
+        self._running: set[str] = set()
 
-    async def add_device(self, device: DeviceConfig) -> None:
-        async with self._lock:
-            await self._registry.add_or_update(device)
-            # первый запуск: планируем немедленно (страхуемся от повторного добавления)
-            self._schedule[device.uid] = self._schedule.get(device.uid, time.time())
+    def register(
+        self,
+        uid: str,
+        interval: float,
+        next_run: float | None = None,
+    ) -> None:
+        """Регистрируем расписание устройства."""
+        if uid in self._jobs:
+            self._logger.info("Смена расписания у %s", uid)
 
-    async def remove_device(self, uid: str) -> None:
-        async with self._lock:
-            await self._registry.remove(uid)
-            self._schedule.pop(uid, None)
+        self._jobs[uid] = JobInfo(next_run=next_run or time.time(), interval=interval)
 
-    async def trigger_and_schedule_next(self) -> Optional[float]:
+    def remove(self, uid: str) -> None:
+        """Удаляет устройство из расписания и списка запущенных."""
+        self._jobs.pop(uid, None)
+        self._running.discard(uid)
+
+    def get_due_jobs(self, current_time: float | None = None) -> list[str]:
         """
-        Сканирует расписание, оптимистично сдвигает таймеры вперед,
-        выстреливает фоновыми воркерами и возвращает время сна для Движка.
+        Возвращает список UID, готовых к запуску (не запущенных прямо сейчас и чье время пришло).
         """
-        async with self._lock:
-            current_time = time.time()
+        current_time = current_time or time.time()
+        result = []
 
-            for dev in await self._registry.get_snapshot():
-                next_run = self._schedule.get(dev.uid)
-                if next_run is not None and current_time >= next_run:
-                    # 1. ОПТИМИСТИЧНЫЙ СДВИГ: сразу переносим запуск в будущее до выстрела таски!
-                    self._schedule[dev.uid] = current_time + (dev.collect_interval_min * 60)
-                    self._logger.info(
-                        "Следующий запуск задачи %s поставлен на +%s мин",
-                        dev.uid,
-                        dev.collect_interval_min,
-                    )
+        for uid, job in self._jobs.items():
+            next_run = job.next_run
+            if uid not in self._running and next_run is not None and current_time >= next_run:
+                result.append(uid)
 
-                    # запуск фоновой
-                    asyncio.create_task(self._safe_execute_launcher(dev))
+        return result
 
-            # возвращаем остаток времени до следующего запуска
-            if not self._schedule:
-                return None
-            earliest_timestamp = min(self._schedule.values())
-            remaining = earliest_timestamp - time.time()
-            return max(0.0, remaining)
+    def mark_started(self, uid: str) -> None:
+        """
+        Ставит отметку 'running'.
+        """
+        self._running.add(uid)
 
-    async def _safe_execute_launcher(self, device: DeviceConfig) -> None:
-        """Изолированный воркер. При ошибках реактивно корректирует расписание поближе."""
-        async with self._semaphore:
-            try:
-                result: CollectResult = await self._action.execute(device)
+    def mark_finished(
+        self,
+        uid: str,
+        *,
+        is_success: bool = True,
+        retry_delay_sec: int | None = None,
+    ) -> None:
+        """
+        Снимает отметку 'running'.
+        Если задача провалилась (is_success=False) и устройство еще в расписании,
+        сдвигает next_run на retry_delay_sec.
+        """
+        self._running.discard(uid)
+        old_job = self._jobs.pop(uid, None)
 
-                if result.is_success:
-                    self._logger.info("Метрики успешно собраны для устройства %s", device.uid)
-                else:
-                    # Реактивная коррекция: если упал, пересчитываем на быстрый повтор
-                    async with self._lock:
-                        if device.uid in self._registry:  # Проверяем, что его не удалили пока он опрашивался
-                            self._schedule[device.uid] = time.time() + 60
-                    self._logger.warning("Сбор для %s провалился. Повтор назначен через 60с.", device.uid)
-                    self._wakeup_event.set()  # Будим Движок
+        if old_job is None:
+            self._logger.warning("Задача %s уже не в расписании, не продлеваем", uid)
+            return
 
-            except Exception:
-                self._logger.exception("критический краш Action для %s", device.uid)
-                async with self._lock:
-                    if device.uid in self._schedule:
-                        self._schedule[device.uid] = time.time() + 60
-                self._wakeup_event.set()
+        interval: float | int
+        if not is_success and retry_delay_sec is not None:
+            interval = retry_delay_sec
+        else:
+            interval = old_job.interval
+        self._jobs[uid] = JobInfo(next_run=time.time() + interval, interval=old_job.interval)
+
+    def seconds_until_next(self) -> float | None:
+        """
+        Считает минимальное время сна только по тем задачам, которые НЕ находятся в self._running.
+        """
+        earliest_run: float | int | None = None
+        for uid, job in self._jobs.items():
+            if uid in self._running:
+                continue
+
+            if earliest_run is None or earliest_run > job.next_run:
+                earliest_run = job.next_run
+
+        if earliest_run is None:
+            return None
+
+        return max(0.0, earliest_run - time.time())
