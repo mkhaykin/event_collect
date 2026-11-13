@@ -3,11 +3,9 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-from pydantic import BaseModel
-
 
 @dataclass(frozen=True)
-class CollectResult(BaseModel):
+class CollectResult:
     """Стандартизированная модель результатов сбора данных."""
 
     uid: str
