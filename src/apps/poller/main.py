@@ -1,6 +1,7 @@
 # apps/poller/main.py
 import asyncio
 import logging
+import signal
 import sys
 
 from apps.poller.service import PollerService
@@ -21,8 +22,17 @@ async def main() -> None:
         concurrency_limit=1000,
         logger=logger,
     ) as service:
+        main_task = asyncio.create_task(service.start_loop())
+
+        loop = asyncio.get_running_loop()
         try:
-            await service.start_loop()
+            loop.add_signal_handler(signal.SIGTERM, main_task.cancel)
+            loop.add_signal_handler(signal.SIGINT, main_task.cancel)
+        except NotImplementedError:
+            pass
+
+        try:
+            await main_task
         except KeyboardInterrupt:
             logger.info("Остановка сервиса ...")
         finally:

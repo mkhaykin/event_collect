@@ -1,6 +1,7 @@
 # apps/collector/main.py
 import asyncio
 import logging
+import signal
 import sys
 
 from apps.collector.service import CollectorService
@@ -23,8 +24,17 @@ async def main() -> None:
         config.VALKEY_DSN,
         logger=logger,
     ) as service:
+        main_task = asyncio.create_task(service.start_loop())
+
+        loop = asyncio.get_running_loop()
         try:
-            await service.start_loop()
+            loop.add_signal_handler(signal.SIGTERM, main_task.cancel)
+            loop.add_signal_handler(signal.SIGINT, main_task.cancel)
+        except NotImplementedError:
+            pass
+
+        try:
+            await main_task
         except KeyboardInterrupt:
             logger.info("Остановка сервиса ...")
         finally:
