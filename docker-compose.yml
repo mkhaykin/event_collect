@@ -37,10 +37,14 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: no
+    env_file:
+      - .env
     depends_on:
       db:
         condition: service_healthy
-    command: uv run yoyo -vvv apply --batch /app/migrations -d "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}"
+      clickhouse:
+        condition: service_healthy
+    command: /app/prepare/prepare.sh
 
   device-provider-worker:
     build:
@@ -101,6 +105,33 @@ services:
         condition: service_completed_successfully
     environment:
       - VALKEY_DSN=redis://valkey:6379/0
+    restart: always
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: clickhouse-server
+    ports:
+      - "8123:8123"   # HTTP Interface / Web UI
+#      - "9000:9000"   # Native TCP Client
+    environment:
+      CLICKHOUSE_DB: "${CLICKHOUSE_DB}"
+      CLICKHOUSE_USER: "${CLICKHOUSE_USER}"
+      CLICKHOUSE_PASSWORD: "${CLICKHOUSE_PASSWORD}"
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "${CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT}"
+#    volumes:
+#      - clickhouse_data:/var/lib/clickhouse
+#      - clickhouse_logs:/var/log/clickhouse-server
+      # Optional: Uncomment below if you want to run initial SQL scripts on startup
+      # - ./init-db.d:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: [ "CMD", "clickhouse-client", "--user", "${CLICKHOUSE_USER}", "--password", "${CLICKHOUSE_PASSWORD}", "--query", "SELECT 1" ]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+#    ulimits:
+#      nofile:
+#        soft: 262144
+#        hard: 262144
     restart: always
 
 networks:

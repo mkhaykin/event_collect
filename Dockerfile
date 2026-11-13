@@ -28,8 +28,12 @@ RUN uv sync --locked
 RUN setcap cap_net_raw+ep /usr/local/bin/python3.12 && \
     if [ -f /app/.venv/bin/python ]; then setcap cap_net_raw+ep $(readlink -f /app/.venv/bin/python); fi
 
+COPY ./prepare.sh /app/prepare/prepare.sh
+RUN chmod +x /app/prepare/prepare.sh
 
 USER appuser
+
+ENV PATH="/app/.venv/bin:$PATH"
 
 COPY ./migrations /app/migrations
 COPY ./src /app
