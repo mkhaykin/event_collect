@@ -18,6 +18,7 @@ from libs.events.models import (
     DeviceConfig,
 )
 from libs.null_logger import NullLogger
+from libs.store import Store, get_client
 
 
 class DeviceProviderService:
@@ -32,6 +33,7 @@ class DeviceProviderService:
         loader: DeviceLoader,
         repository: DeviceConfigRepository,
         notifier: DeviceNotificationService,
+        store: Store | None = None,
         *,
         logger: logging.Logger | None = None,
     ) -> None:
@@ -41,9 +43,13 @@ class DeviceProviderService:
         self._repository = repository
         self._notifier = notifier
 
+        self._store = store
+
     async def sync_configuration(self) -> None:
         """Дифференциальная синхронизация конфигурации в Valkey и отправка эвентов."""
         self._logger.debug("Старт синхронизации ...")
+        if self._store:  # TODO try или try в store?
+            await self._store.service_lifecycle_activity_store("device provider", "started")
 
         sync_time = datetime.now(timezone.utc).isoformat()
 
@@ -74,6 +80,9 @@ class DeviceProviderService:
         for uid in deleted_devices:
             await self._notifier.send_device_deleted(uid)
             self._logger.info("устройство %s удалено", uid)
+
+        if self._store:  # TODO try или try в store?
+            await self._store.service_lifecycle_activity_store("device provider", "stopped")
 
     @classmethod
     @asynccontextmanager
@@ -106,10 +115,17 @@ class DeviceProviderService:
             logger=logger,
         )
 
+        store_client = await get_client()
+        store = Store(
+            client=store_client,
+            logger=logger,
+        )
+
         instance = cls(
             loader=loader,
             repository=repository,
             notifier=notifier,
+            store=store,
             logger=logger,
         )
 
@@ -117,3 +133,4 @@ class DeviceProviderService:
             yield instance
         finally:
             await client.aclose()
+            await store_client.close()

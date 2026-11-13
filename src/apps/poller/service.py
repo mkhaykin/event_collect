@@ -18,18 +18,20 @@ from apps.poller.workers import DeviceNetworkWorker
 from libs.events.models import DeviceConfig
 from libs.null_logger import NullLogger
 from libs.poller.models import DeviceProbeResult
+from libs.store import Store, get_client
 
 
 class PollerService:
-    """Основной процесс-тикер. Базовый шаг — 1 секунда."""
+    """Основной процесс."""
 
-    def __init__(  # noqa: PLR0913
+    def __init__(  # noqa: PLR0913 PLR0917
         self,
         registry: DeviceRegistry,
         state_machine: DeviceStateMachine,
         worker_pool: DeviceNetworkWorker,
         listener: PollerBusListener,
         repository: DeviceConfigRepository,
+        store: Store | None = None,
         *,
         concurrency_limit: int = 1000,
         logger: logging.Logger | None = None,
@@ -42,10 +44,15 @@ class PollerService:
         self._listener = listener
         self._repository = repository
 
+        self._store = store
+
         self._semaphore = asyncio.Semaphore(concurrency_limit)
 
     async def start_loop(self) -> None:
         """Вечный цикл + засыпание на секунду."""
+        if self._store:  # TODO try или try в store?
+            await self._store.service_lifecycle_activity_store("poller", "started")
+
         # запускаем хранение состояний
         sm_task = asyncio.create_task(self._state_machine.start_processing())
         # тут поток слушателя от device provider-а
@@ -59,9 +66,15 @@ class PollerService:
 
         try:
             await self._loop()
+        except asyncio.CancelledError:
+            print("[Корутина] Была отменена из-за сигнала")
+            # Можно обработать отмену здесь, если нужно
+            raise
         finally:
             sm_task.cancel()
             listener_task.cancel()
+            if self._store:  # TODO try или try в store?
+                await self._store.service_lifecycle_activity_store("poller", "stopped")
 
     async def _loop(self) -> None:
         # TODO подумать на засыпание на время.
@@ -149,12 +162,20 @@ class PollerService:
             client,
             registry,
         )
+
+        store_client = await get_client()
+        store = Store(
+            client=store_client,
+            logger=logger,
+        )
+
         instance = cls(
             registry,
             state_machine,
             worker_pool,
             bus_listener,
             repository,
+            store=store,
             concurrency_limit=concurrency_limit,
             logger=logger,
         )
@@ -163,3 +184,4 @@ class PollerService:
             yield instance
         finally:
             await client.aclose()
+            await store_client.close()

@@ -21,6 +21,7 @@ from libs.collector.models import (
 )
 from libs.config import config
 from libs.null_logger import NullLogger
+from libs.store import Store, get_client
 
 
 class CollectorService:
@@ -38,6 +39,7 @@ class CollectorService:
         wakeup_event: asyncio.Event,
         db_repo: CollectorStatusStore,
         listener: CollectorBusListener,
+        store: Store | None = None,
         *,
         logger: logging.Logger | None = None,
     ) -> None:
@@ -54,9 +56,13 @@ class CollectorService:
         self._db_repo = db_repo
         self._listener = listener
 
+        self._store = store
+
     async def start_loop(self) -> None:
         """Основной цикл"""
         self._logger.info("%s started...", self.__class__.__name__)
+        if self._store:  # TODO try или try в store?
+            await self._store.service_lifecycle_activity_store("collector", "started")
 
         # запускаем фоновую вычитку данных из листенера
         consumer_task = asyncio.create_task(self._consume_commands_loop())
@@ -69,6 +75,9 @@ class CollectorService:
             consumer_task.cancel()
             listener_task.cancel()
             await asyncio.gather(listener_task, consumer_task, return_exceptions=True)
+
+            if self._store:  # TODO try или try в store?
+                await self._store.service_lifecycle_activity_store("collector", "stopped")
 
     async def _consume_commands_loop(self) -> None:
         """Единый обработчик команд мутации состояния (онлайн, офлайн, завершение сбора)."""
@@ -206,6 +215,12 @@ class CollectorService:
 
         config_repository = DeviceConfigRepository(client, logger=logger)
 
+        store_client = await get_client()
+        store = Store(
+            client=store_client,
+            logger=logger,
+        )
+
         # само ядро
         engine = cls(
             repository=config_repository,
@@ -216,6 +231,7 @@ class CollectorService:
             internal_queue=internal_queue,
             wakeup_event=wakeup_event,
             listener=bus_listener,
+            store=store,
             logger=logger,
         )
 
@@ -223,3 +239,4 @@ class CollectorService:
             yield engine
         finally:
             await client.aclose()
+            await store_client.close()
