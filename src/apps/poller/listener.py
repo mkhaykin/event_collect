@@ -14,6 +14,11 @@ from libs.null_logger import NullLogger
 
 
 class PollerBusListener:
+    """
+    Слушает очередь (valkey) на изменение состояния устройств,
+    изменение состояния фиксирует в реестре устройств `registry`.
+    """
+
     CONFIG_EVENT_CREATED: str = config.CONFIG_EVENT_CREATED
     CONFIG_EVENT_UPDATED: str = config.CONFIG_EVENT_UPDATED
     CONFIG_EVENT_DELETED: str = config.CONFIG_EVENT_DELETED
