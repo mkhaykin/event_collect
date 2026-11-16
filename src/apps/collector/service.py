@@ -7,12 +7,14 @@ from typing import Any, AsyncGenerator, Self
 from redis.asyncio import from_url
 from redis.maint_notifications import MaintNotificationsConfig
 
-from apps.collector.actions import DummyCollectAction
 from apps.collector.listener import CollectorBusListener
 from apps.collector.registry import DeviceOnlineRegistry
 from apps.collector.runner import JobRunner
 from apps.collector.scheduler import JobScheduler
 from apps.collector.store import CollectorStatusStore
+from apps.collector.win_events.actions import WinEventsCollectAction
+from apps.collector.win_events.ch_buffer import ClickHouseWinEventBuffer
+from apps.collector.win_events.scripts import ps_script
 from apps.device_provider.repository import DeviceConfigRepository
 from libs.collector.models import (
     DeviceOfflineCommand,
@@ -182,14 +184,30 @@ class CollectorService:
             maint_notifications_config=MaintNotificationsConfig(enabled=False),
         )
 
+        store_client = await get_client()
+        store = Store(
+            client=store_client,
+            logger=logger,
+        )
+
         # событие для подъема основного потока из ожидания
         wakeup_event = asyncio.Event()
         # очередь от листенера до основного потока
         internal_queue: asyncio.Queue[Any] = asyncio.Queue()
 
-        # пока пустышка (потом PS)
-        action_plugin = DummyCollectAction(logger=logger)
-        # пока пустышка, потом сохранять инфу в БД
+        action_plugin = WinEventsCollectAction(
+            "192.168.250.121",
+            port=5985,
+            usr="user",
+            psw="...",  # TODO в конфиг
+            ps_script=ps_script,
+            ch_buffer=ClickHouseWinEventBuffer(
+                ch_repo=store,
+                logger=logger,
+            ),
+            logger=logger,
+        )
+        # сохраняем статусы служб в кликхаус. todo а надо?
         db_repo = CollectorStatusStore(logger=logger)
 
         registry = DeviceOnlineRegistry(logger=logger)
@@ -214,12 +232,6 @@ class CollectorService:
         )
 
         config_repository = DeviceConfigRepository(client, logger=logger)
-
-        store_client = await get_client()
-        store = Store(
-            client=store_client,
-            logger=logger,
-        )
 
         # само ядро
         engine = cls(

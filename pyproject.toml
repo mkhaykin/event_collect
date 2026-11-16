@@ -10,6 +10,7 @@ dependencies = [
     "clickhouse-migrations>=0.16.2",
     "icmplib>=3.0.4",
     "psycopg2-binary>=2.9.13",
+    "pypsrp>=0.9.1",
     "pyyaml>=6.0.3",
     "redis>=8.1.0",
     "taskiq-redis>=1.2.4",

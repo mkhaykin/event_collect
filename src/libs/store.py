@@ -5,6 +5,7 @@ from typing import Iterable, Literal
 import clickhouse_connect
 from clickhouse_connect.driver import AsyncClient
 
+from apps.collector.win_events.event_flat import EventFlat
 from libs.null_logger import NullLogger
 from libs.poller.models import DeviceProbeResult
 
@@ -68,4 +69,17 @@ class Store:
                 "probes_sent",
                 "error_message",
             ],
+        )
+
+    async def store_events(self, flat_events: list[EventFlat]) -> None:
+        if not flat_events:
+            return
+
+        # Вытаскиваем массив плоских кортежей
+        rows = [event.to_clickhouse_row() for event in flat_events]
+
+        await self._client.insert(
+            "device_events",
+            rows,
+            column_names=EventFlat.get_column_names(),
         )
