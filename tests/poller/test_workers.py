@@ -15,7 +15,12 @@ async def test_worker_success_flow():
     # Симулируем успешный ответ плагина: (is_ok, latency, loss)
     mock_checker.probe = AsyncMock(return_value=(True, 15.5, 0.0))
 
-    worker = DeviceNetworkWorker(checker=mock_checker, result_queue=queue)
+    worker = DeviceNetworkWorker(
+        checker=mock_checker,
+        queues=[
+            queue,
+        ],
+    )
     await worker.run_probe(uid="dev-1", ip="1.1.1.1", check_type="icmp", port=None, probes_count=3)
 
     assert queue.qsize() == 1
@@ -38,7 +43,12 @@ async def test_worker_timeout_handling():
 
     mock_checker.probe = slow_probe
 
-    worker = DeviceNetworkWorker(checker=mock_checker, result_queue=queue)
+    worker = DeviceNetworkWorker(
+        checker=mock_checker,
+        queues=[
+            queue,
+        ],
+    )
     await worker.run_probe(uid="dev-1", ip="1.1.1.1", check_type="icmp", port=None, probes_count=3)
 
     result = await queue.get()
@@ -54,7 +64,12 @@ async def test_worker_network_exception_handling():
     mock_checker = MagicMock()
     mock_checker.probe = AsyncMock(side_effect=ConnectionRefusedError("Host down"))
 
-    worker = DeviceNetworkWorker(checker=mock_checker, result_queue=queue)
+    worker = DeviceNetworkWorker(
+        checker=mock_checker,
+        queues=[
+            queue,
+        ],
+    )
     await worker.run_probe(uid="dev-1", ip="1.1.1.1", check_type="icmp", port=None, probes_count=1)
 
     result = await queue.get()

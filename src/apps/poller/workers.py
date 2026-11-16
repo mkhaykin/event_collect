@@ -1,6 +1,7 @@
 # apps/poller/workers.py
 import asyncio
 import logging
+import time
 from typing import Protocol
 
 from libs.null_logger import NullLogger
@@ -14,19 +15,22 @@ class NetworkChecker(Protocol):
 
 
 class DeviceNetworkWorker:
-    """Изолированный исполнитель сетевой пробы."""
+    """
+    Изолированный исполнитель сетевой пробы.
+    Выполняет проверку устройства и кладет результат в переданные очереди
+    """
 
     def __init__(
         self,
         checker: NetworkChecker,
-        result_queue: asyncio.Queue[DeviceProbeResult],
+        queues: list[asyncio.Queue[DeviceProbeResult]],
         *,
         logger: logging.Logger | None = None,
     ) -> None:
         self._logger = logger or NullLogger(__name__)
 
         self._checker = checker
-        self._queue = result_queue
+        self._queue = queues
 
     async def run_probe(
         self,
@@ -54,6 +58,7 @@ class DeviceNetworkWorker:
                     latency_ms=latency,
                     packet_loss=loss,
                     probes_sent=probes_count,
+                    timestamp=int(time.time() * 1000),
                 )
         except TimeoutError:
             self._logger.error("Timeout Error для %s", uid)
@@ -62,6 +67,7 @@ class DeviceNetworkWorker:
                 is_success=False,
                 packet_loss=100.0,
                 probes_sent=probes_count,
+                timestamp=int(time.time() * 1000),
                 error_message="TimeoutError: Превышено ограничение в 4 секунды",
             )
         except Exception as e:
@@ -71,8 +77,12 @@ class DeviceNetworkWorker:
                 is_success=False,
                 packet_loss=100.0,
                 probes_sent=probes_count,
+                timestamp=int(time.time() * 1000),
                 error_message=f"NetworkError: {str(e)}",
             )
 
         self._logger.debug("Результат пробы для %s: %s", uid, result)
-        await self._queue.put(result)
+
+        # TODO try | except
+        for queue in self._queue:
+            await queue.put(result)

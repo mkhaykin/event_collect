@@ -1,11 +1,12 @@
 import logging
 import time
-from typing import Literal
+from typing import Iterable, Literal
 
 import clickhouse_connect
 from clickhouse_connect.driver import AsyncClient
 
 from libs.null_logger import NullLogger
+from libs.poller.models import DeviceProbeResult
 
 
 async def get_client() -> AsyncClient:
@@ -39,4 +40,32 @@ class Store:
                 (service_name, int(time.time() * 1000), event),
             ],
             column_names=["service_name", "timestamp", "event"],
+        )
+
+    async def store_probe_result(self, probes: Iterable[DeviceProbeResult]) -> None:
+        rows = [
+            (
+                result.uid,
+                result.timestamp,
+                1 if result.is_success else 0,
+                float(result.latency_ms),
+                float(result.packet_loss),
+                int(result.probes_sent),
+                result.error_message or "",
+            )
+            for result in probes
+        ]
+
+        await self._client.insert(
+            "device_probes",
+            rows,
+            column_names=[
+                "uid",
+                "timestamp",
+                "is_success",
+                "latency_ms",
+                "packet_loss",
+                "probes_sent",
+                "error_message",
+            ],
         )

@@ -1,10 +1,13 @@
 # libs/poller/models.py
+import time
+from dataclasses import dataclass, field
 from typing import Literal, Optional
 
 from pydantic import BaseModel
 
 
-class DeviceProbeResult(BaseModel):
+@dataclass(frozen=True)
+class DeviceProbeResult:
     """Объект результата опроса, генерируемый воркером."""
 
     uid: str
@@ -12,6 +15,7 @@ class DeviceProbeResult(BaseModel):
     latency_ms: float = 0.0
     packet_loss: float = 0.0
     probes_sent: int = 1
+    timestamp: float = field(default_factory=lambda: int(time.time() * 1000))
     error_message: Optional[str] = None
 
 

@@ -10,6 +10,7 @@ from redis.maint_notifications import MaintNotificationsConfig
 
 from apps.device_provider.repository import DeviceConfigRepository
 from apps.poller.bus_notifier import StatusBusNotifier
+from apps.poller.ch_buffer import ClickHouseMetricsBuffer
 from apps.poller.checkers import IcmpChecker
 from apps.poller.listener import PollerBusListener
 from apps.poller.registry import DeviceRegistry
@@ -32,6 +33,7 @@ class PollerService:
         listener: PollerBusListener,
         repository: DeviceConfigRepository,
         store: Store | None = None,
+        metrics_buffer: ClickHouseMetricsBuffer | None = None,
         *,
         concurrency_limit: int = 1000,
         logger: logging.Logger | None = None,
@@ -45,6 +47,7 @@ class PollerService:
         self._repository = repository
 
         self._store = store
+        self._metrics_buffer = metrics_buffer
 
         self._semaphore = asyncio.Semaphore(concurrency_limit)
 
@@ -57,6 +60,11 @@ class PollerService:
         sm_task = asyncio.create_task(self._state_machine.start_processing())
         # тут поток слушателя от device provider-а
         listener_task = asyncio.create_task(self._listener.listen_forever())
+
+        if self._metrics_buffer:
+            metrics_task = asyncio.create_task(self._metrics_buffer.start_loop())
+        else:
+            metrics_task = None
 
         self._logger.info("Стартовая загрузка устройств из ValKey...")
         initial_devices = await self._repository.load_all_active_configs()
@@ -75,6 +83,8 @@ class PollerService:
             listener_task.cancel()
             if self._store:  # TODO try или try в store?
                 await self._store.service_lifecycle_activity_store("poller", "stopped")
+            if metrics_task:
+                metrics_task.cancel()
 
     async def _loop(self) -> None:
         # TODO подумать на засыпание на время.
@@ -137,6 +147,7 @@ class PollerService:
         )
 
         queue: asyncio.Queue[DeviceProbeResult] = asyncio.Queue()
+        queue_ch: asyncio.Queue[DeviceProbeResult] = asyncio.Queue()
 
         bus_notifier = StatusBusNotifier(
             client,
@@ -153,7 +164,7 @@ class PollerService:
         checker = IcmpChecker(logger=logger)
         worker_pool = DeviceNetworkWorker(
             checker,
-            queue,
+            [queue, queue_ch],
             logger=logger,
         )
 
@@ -169,6 +180,12 @@ class PollerService:
             logger=logger,
         )
 
+        ch_metrics_buffer = ClickHouseMetricsBuffer(
+            result_queue=queue_ch,
+            ch_repo=store,
+            logger=logger,
+        )
+
         instance = cls(
             registry,
             state_machine,
@@ -176,6 +193,7 @@ class PollerService:
             bus_listener,
             repository,
             store=store,
+            metrics_buffer=ch_metrics_buffer,
             concurrency_limit=concurrency_limit,
             logger=logger,
         )
