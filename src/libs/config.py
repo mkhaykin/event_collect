@@ -26,6 +26,9 @@ class Config:
     POLLER_SUCCESS_COUNT: int = 3
 
     CONCURRENCY_LIMIT: int = 20
+    QUEUE_TIMEOUT: int = 3  # таймаут для записи в очеред в JobRunner, если превышен, то пропуск.
+    # Пропуск тихий, просто генерируется запись в логах.
+    # TODO Подумать может стоит сбрасывать джобу вообще ...
 
 
 config = Config()

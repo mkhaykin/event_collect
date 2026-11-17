@@ -5,7 +5,7 @@ from typing import Iterable, Literal
 import clickhouse_connect
 from clickhouse_connect.driver import AsyncClient
 
-from apps.collector.win_events.event_flat import EventFlat
+from apps.collector.actions.win_events.event_flat import EventFlat
 from libs.null_logger import NullLogger
 from libs.poller.models import DeviceProbeResult
 

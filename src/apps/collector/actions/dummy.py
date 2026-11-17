@@ -1,18 +1,11 @@
-# apps/collector/actions.py
+# apps/collector/actions/dummy.py
 import asyncio
 import logging
 import time
-from typing import Protocol
 
 from libs.collector.models import CollectResult
 from libs.events.models import DeviceConfig
 from libs.null_logger import NullLogger
-
-
-class CollectAction(Protocol):
-    """для плагинов сбора данных (SNMP, SSH, REST API, etc.)."""
-
-    async def execute(self, device: DeviceConfig) -> CollectResult: ...
 
 
 class DummyCollectAction:
@@ -36,7 +29,7 @@ class DummyCollectAction:
         self._logger.debug("закончили опрашивать %s, time=%s", device.uid, exec_time)
 
         return CollectResult(
-            uid=device.uid,
+            device_uid=device.uid,
             is_success=True,
             payload={"metrics_count": 42, "firmware": "v1.2.3"},
             execution_time_sec=exec_time,

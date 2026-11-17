@@ -8,7 +8,9 @@ from typing import Any
 class CollectResult:
     """Стандартизированная модель результатов сбора данных."""
 
-    uid: str
+    # TODO существование не очевидно. Какое-то пересечение с JobFinishedCommand.
+    #  Подумать, дописать для чего или удалить...
+    device_uid: str
     is_success: bool
     payload: dict[str, Any] | None = None
     execution_time_sec: float = 0.0
@@ -35,6 +37,7 @@ class DeviceOfflineCommand:
 class JobFinishedCommand:
     """Команда завершения выполнения задачи сбора для обновления JobScheduler."""
 
-    uid: str
+    device_uid: str
+    task_uid: str
     is_success: bool
     result: CollectResult | None = None

@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 from typing import Optional
 
-from apps.collector.win_events.event_flat import EventFlat
+from apps.collector.actions.win_events.event_flat import EventFlat
 
 
 @dataclass(frozen=True, slots=True)

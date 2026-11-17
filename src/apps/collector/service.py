@@ -7,14 +7,14 @@ from typing import Any, AsyncGenerator, Self
 from redis.asyncio import from_url
 from redis.maint_notifications import MaintNotificationsConfig
 
+from apps.collector.actions.base import BaseCollectAction
+from apps.collector.actions.win_events.actions import WinEventsCollectAction
+from apps.collector.actions.win_events.saver import ClickHouseWinEventsSaver
 from apps.collector.listener import CollectorBusListener
 from apps.collector.registry import DeviceOnlineRegistry
 from apps.collector.runner import JobRunner
 from apps.collector.scheduler import JobScheduler
 from apps.collector.store import CollectorStatusStore
-from apps.collector.win_events.actions import WinEventsCollectAction
-from apps.collector.win_events.ch_buffer import ClickHouseWinEventBuffer
-from apps.collector.win_events.scripts import ps_script
 from apps.device_provider.repository import DeviceConfigRepository
 from libs.collector.models import (
     DeviceOfflineCommand,
@@ -34,10 +34,10 @@ class CollectorService:
     def __init__(  # noqa: PLR0913 PLR0917
         self,
         registry: DeviceOnlineRegistry,
-        repository: DeviceConfigRepository,
+        repository: DeviceConfigRepository,  # valkey_repo
         scheduler: JobScheduler,
         runner: JobRunner,
-        internal_queue: asyncio.Queue[Any],
+        command_queue: asyncio.Queue[Any],
         wakeup_event: asyncio.Event,
         db_repo: CollectorStatusStore,
         listener: CollectorBusListener,
@@ -52,7 +52,7 @@ class CollectorService:
 
         self._scheduler = scheduler
         self._runner = runner
-        self._queue = internal_queue
+        self._queue = command_queue
 
         self._wakeup_event = wakeup_event
         self._db_repo = db_repo
@@ -66,10 +66,10 @@ class CollectorService:
         if self._store:  # TODO try или try в store?
             await self._store.service_lifecycle_activity_store("collector", "started")
 
-        # запускаем фоновую вычитку данных из листенера
-        consumer_task = asyncio.create_task(self._consume_commands_loop())
         # слушатель
         listener_task = asyncio.create_task(self._listener.listen_forever())
+        # запускаем фоновую вычитку данных из листенера
+        consumer_task = asyncio.create_task(self._consume_commands_loop())
 
         try:
             await self._loop()
@@ -94,7 +94,8 @@ class CollectorService:
 
                 elif isinstance(cmd, JobFinishedCommand):
                     self._scheduler.mark_finished(
-                        cmd.uid,
+                        cmd.device_uid,
+                        cmd.task_uid,
                         is_success=cmd.is_success,
                         retry_delay_sec=self.RETRY_DELAY_SEC,
                     )
@@ -116,16 +117,27 @@ class CollectorService:
 
         await self._db_repo.log_status_change(uid, "ONLINE")
         await self._registry.add_or_update(device)
-        # Переводим минуты из конфига в секунды для шедулера
-        self._scheduler.register(uid, interval=device.collect_interval_min * 60)
-        self._logger.info(
-            "Устройство %s поставлено на сбор (интервал: %s мин)",
-            uid,
-            device.collect_interval_min,
-        )
+
+        if not device.collectors:
+            self._logger.warning("Устройство %s онлайн, collectors пуст, сбор игнорируется", uid)
+            return
+
+        for task in device.collectors:
+            # Переводим минуты из конфига в секунды для шедулера
+            self._scheduler.register(uid, task.uid, interval=task.interval_min * 60)
+            self._logger.info(
+                "Устройство %s поставлено на сбор (интервал: %s мин)",
+                uid,
+                task.interval_min,
+            )
 
     async def _handle_device_offline(self, uid: str) -> None:
         await self._db_repo.log_status_change(uid, "OFFLINE")
+
+        device = await self._registry.get(uid)
+        if device:
+            pass
+
         await self._registry.remove(uid)
         self._scheduler.remove(uid)
         self._logger.info("Устройство %s снято со сбора", uid)
@@ -134,15 +146,28 @@ class CollectorService:
         while True:
             due_uids = self._scheduler.get_due_jobs()
 
-            for uid in due_uids:
-                device = await self._registry.get(uid)
+            for device_uid, task_uid in due_uids:
+                device = await self._registry.get(device_uid)
                 if device:
-                    self._scheduler.mark_started(uid)
-                    self._runner.dispatch(device)
+                    task = None
+                    for item in device.collectors:
+                        if item.uid == task_uid:
+                            task = item
+
+                    if task is None:
+                        self._logger.error(
+                            "Дичь. Нет таска %s для %s, хотя должен быть",
+                            task_uid,
+                            device_uid,
+                        )
+                        continue
+
+                    self._scheduler.mark_started(device_uid, task_uid)
+                    self._runner.dispatch(device, task)
                 else:
                     self._logger.error(
                         "Не нашли конфигурацию устройства %s в репозитории, пропускаем обработку",
-                        uid,
+                        device_uid,
                     )
 
             # определяем время сна
@@ -176,7 +201,7 @@ class CollectorService:
         concurrency_limit: int = config.CONCURRENCY_LIMIT,
     ) -> AsyncGenerator[Self, None]:
 
-        client = await from_url(
+        valkey_client = await from_url(
             valkey_dsn,
             decode_responses=True,
             socket_timeout=None,
@@ -194,20 +219,19 @@ class CollectorService:
         wakeup_event = asyncio.Event()
         # очередь от листенера до основного потока
         internal_queue: asyncio.Queue[Any] = asyncio.Queue()
+        # отдельная очередь для событий журнала
+        win_events_queue: asyncio.Queue[Any] = asyncio.Queue()
 
-        action_plugin = WinEventsCollectAction(
-            "192.168.250.121",
-            port=5985,
-            usr="user",
-            psw="...",  # TODO в конфиг
-            ps_script=ps_script,
-            ch_buffer=ClickHouseWinEventBuffer(
-                ch_repo=store,
-                logger=logger,
-            ),
-            logger=logger,
-        )
-        # сохраняем статусы служб в кликхаус. todo а надо?
+        win_events_saver = ClickHouseWinEventsSaver(win_events_queue, store, logger=logger)
+        win_saver_task = asyncio.create_task(win_events_saver.start_loop())
+
+        plugin_registry: dict[str, type[BaseCollectAction]] = {
+            "win_events": WinEventsCollectAction,
+        }
+        queues_registry: dict[str, asyncio.Queue] = {
+            "win_events": win_events_queue,
+        }
+
         db_repo = CollectorStatusStore(logger=logger)
 
         registry = DeviceOnlineRegistry(logger=logger)
@@ -219,19 +243,20 @@ class CollectorService:
 
         # листенер, подписан на события поллера (online|offline)
         bus_listener = CollectorBusListener(
-            client,
+            valkey_client,
             internal_queue=internal_queue,
             logger=logger,
         )
 
         runner = JobRunner(
-            action=action_plugin,
-            internal_queue=internal_queue,
+            plugin_registry,
+            queues_registry,
+            command_queue=internal_queue,
             concurrency_limit=concurrency_limit,
             logger=logger,
         )
 
-        config_repository = DeviceConfigRepository(client, logger=logger)
+        config_repository = DeviceConfigRepository(valkey_client, logger=logger)
 
         # само ядро
         engine = cls(
@@ -240,7 +265,7 @@ class CollectorService:
             scheduler=scheduler,
             runner=runner,
             db_repo=db_repo,
-            internal_queue=internal_queue,
+            command_queue=internal_queue,
             wakeup_event=wakeup_event,
             listener=bus_listener,
             store=store,
@@ -250,5 +275,7 @@ class CollectorService:
         try:
             yield engine
         finally:
-            await client.aclose()
+            win_saver_task.cancel()
+
+            await valkey_client.aclose()
             await store_client.close()

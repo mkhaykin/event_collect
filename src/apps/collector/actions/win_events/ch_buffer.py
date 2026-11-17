@@ -3,7 +3,7 @@ import asyncio
 import logging
 from typing import List
 
-from apps.collector.win_events.event_flat import EventFlat
+from apps.collector.actions.win_events.event_flat import EventFlat
 from libs.null_logger import NullLogger
 from libs.store import Store
 
