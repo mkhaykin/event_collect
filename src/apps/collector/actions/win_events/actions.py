@@ -12,7 +12,7 @@ from apps.collector.actions.win_events.helpers import (
     parse_json_stream,
     stream_powershell_output,
 )
-from apps.collector.actions.win_events.scripts import ps_script as script_text
+from apps.collector.actions.win_events.scripts import get_ps_script
 from libs.collector.models import CollectResult
 from libs.config import config
 from libs.events.models import DeviceConfig
@@ -32,7 +32,7 @@ class WinEventsCollectAction(BaseCollectAction):
 
         self._usr = self._extra_params.pop("usr")
         self._psw = self._extra_params.pop("psw")
-        self._ps_script = self._extra_params.pop("ps_script", None) or script_text
+        self._ps_script = self._extra_params.pop("ps_script", None) or get_ps_script()
         # TODO сделать варнинг если что-то осталось в self._extra_params
 
     async def execute(self, device: DeviceConfig) -> CollectResult:

@@ -1,12 +1,37 @@
 # TODO надо переделать на класс который строит эти запросы. Может с фильтрацией и с типом журнала
 # Но вообще это в отдельный класс
 
-ps_script = """
-# Переключаем язык потока на английский
+
+def get_ps_script(
+    limit: int = 10,
+    last_record_id: int | None = None,
+) -> str:
+    xml_filter_query = (
+        (
+            """
+$xmlQuery = @"
+<QueryList>
+  <Query Id="0" Path="System">
+    <Select Path="System">*[System[EventRecordID >= %s]]</Select>
+  </Query>
+</QueryList>
+"@
+
+"""
+            % last_record_id
+        )
+        if last_record_id is not None
+        else ""
+    )
+
+    xml_filter = "-FilterXml $xmlQuery" if last_record_id is not None else ""
+
+    return """# Переключаем язык потока на английский
 [System.Threading.Thread]::CurrentThread.CurrentCulture = New-Object "System.Globalization.CultureInfo" "en-US";
 [System.Threading.Thread]::CurrentThread.CurrentUICulture = New-Object "System.Globalization.CultureInfo" "en-US";
 
-Get-WinEvent -LogName 'System' -MaxEvents 10 -ErrorAction SilentlyContinue | ForEach-Object {
+%s
+Get-WinEvent %s -LogName 'System' -MaxEvents %s -Oldest -ErrorAction SilentlyContinue | ForEach-Object {
     $xml = [xml]$_.ToXml()
     $systemNode = $xml.Event.System
     $eventDataNode = $xml.Event.EventData
@@ -66,4 +91,4 @@ Get-WinEvent -LogName 'System' -MaxEvents 10 -ErrorAction SilentlyContinue | For
 
     $item | ConvertTo-Json -Compress
 }
-"""  # noqa: E501
+""" % (xml_filter_query, xml_filter, limit)  # noqa: E501
