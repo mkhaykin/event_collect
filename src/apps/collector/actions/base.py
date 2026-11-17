@@ -4,6 +4,7 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any
 
+from apps.collector.actions.states.interface import IStateStorage
 from libs.collector.models import CollectResult
 from libs.events.models import DeviceConfig
 from libs.null_logger import NullLogger
@@ -17,12 +18,14 @@ class BaseCollectAction(ABC):
         # TODO переделать на опциональный, в общем может ничего и не быть.
         #  И код будет проще (наверное)
         queue: asyncio.Queue[Any],
+        state_storage: IStateStorage | None = None,
         *,
         logger: logging.Logger | None = None,
         **kwargs: Any,  # Сюда провалятся все уникальные креды (usr, psw и т.д.)
     ) -> None:
-        self._queue = queue
         self._logger = logger or NullLogger(__name__)
+        self._queue = queue
+        self._state_storage = state_storage
 
         # Если дочернему классу передали что-то лишнее, чего он не ожидал,
         # мы сохраняем это, либо игнорируем, защищая от TypeError

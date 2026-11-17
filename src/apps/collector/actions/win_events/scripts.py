@@ -3,35 +3,24 @@
 
 
 def get_ps_script(
-    limit: int = 10,
-    last_record_id: int | None = None,
+    limit: int = 1_000,
+    log_name: str = "System",
+    last_record_id: int = -1,
 ) -> str:
-    xml_filter_query = (
-        (
-            """
-$xmlQuery = @"
-<QueryList>
-  <Query Id="0" Path="System">
-    <Select Path="System">*[System[EventRecordID >= %s]]</Select>
+    xml_filter_query = """
+$filterXml = '<QueryList>
+  <Query Id="0" Path="%s">
+    <Select Path="%s">*[System[Channel="%s" and EventRecordID > %s]]</Select>
   </Query>
-</QueryList>
-"@
-
-"""
-            % last_record_id
-        )
-        if last_record_id is not None
-        else ""
-    )
-
-    xml_filter = "-FilterXml $xmlQuery" if last_record_id is not None else ""
+</QueryList>'""" % (log_name, log_name, log_name, last_record_id)
 
     return """# Переключаем язык потока на английский
 [System.Threading.Thread]::CurrentThread.CurrentCulture = New-Object "System.Globalization.CultureInfo" "en-US";
 [System.Threading.Thread]::CurrentThread.CurrentUICulture = New-Object "System.Globalization.CultureInfo" "en-US";
 
 %s
-Get-WinEvent %s -LogName 'System' -MaxEvents %s -Oldest -ErrorAction SilentlyContinue | ForEach-Object {
+
+Get-WinEvent -FilterXml $filterXml -MaxEvents %s -Oldest -ErrorAction SilentlyContinue | ForEach-Object {
     $xml = [xml]$_.ToXml()
     $systemNode = $xml.Event.System
     $eventDataNode = $xml.Event.EventData
@@ -91,4 +80,4 @@ Get-WinEvent %s -LogName 'System' -MaxEvents %s -Oldest -ErrorAction SilentlyCon
 
     $item | ConvertTo-Json -Compress
 }
-""" % (xml_filter_query, xml_filter, limit)  # noqa: E501
+""" % (xml_filter_query, limit)  # noqa: E501

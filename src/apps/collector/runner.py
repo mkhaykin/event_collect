@@ -5,6 +5,7 @@ from typing import Any
 
 from apps.collector.actions.base import BaseCollectAction
 from apps.collector.actions.interface import CollectAction
+from apps.collector.actions.states.file_state_storage import FileStateStorage
 from libs.collector.models import CollectResult, JobFinishedCommand
 from libs.config import config
 from libs.events.models import CollectorTaskConfig, DeviceConfig
@@ -63,6 +64,9 @@ class JobRunner:
         # TODO добавить try | except для
         action: CollectAction = plugin_class(
             queue=target_queue,
+            state_storage=FileStateStorage(
+                logger=self._logger,
+            ),
             logger=self._logger,
             **task.params,
         )
