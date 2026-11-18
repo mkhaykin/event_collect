@@ -8,7 +8,7 @@ from apps.device_provider.repository import DeviceConfigRepository
 from apps.poller.bus_notifier import StatusBusNotifier
 from apps.poller.listener import PollerBusListener
 from apps.poller.registry import DeviceRegistry
-from libs.events.models import DeviceConfig
+from libs.models.config import DeviceConfig
 
 CONFIG_EVENT_CREATED: str = "events:device_created"
 CONFIG_EVENT_UPDATED: str = "events:device_updated"

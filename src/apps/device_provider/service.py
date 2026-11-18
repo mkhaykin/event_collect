@@ -14,9 +14,7 @@ from apps.device_provider.loader import (
 )
 from apps.device_provider.notifier import DeviceNotificationService
 from apps.device_provider.repository import DeviceConfigRepository
-from libs.events.models import (
-    DeviceConfig,
-)
+from libs.models.config import DeviceConfig
 from libs.null_logger import NullLogger
 from libs.store import Store, get_client
 

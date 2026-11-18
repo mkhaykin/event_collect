@@ -1,4 +1,4 @@
-# libs/poller/models.py
+# libs/poller/config.py
 import time
 from dataclasses import dataclass, field
 from typing import Literal, Optional

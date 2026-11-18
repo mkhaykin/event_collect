@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from apps.device_provider.loader import DeviceYamlLoader
-from libs.events.models import DeviceConfig
+from libs.models.config import DeviceConfig
 
 
 @pytest.mark.asyncio

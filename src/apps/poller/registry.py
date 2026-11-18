@@ -1,7 +1,7 @@
 # apps/poller/registry.py
 import asyncio
 
-from libs.events.models import DeviceConfig
+from libs.models.config import DeviceConfig
 
 
 class DeviceRegistry:

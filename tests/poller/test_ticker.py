@@ -16,7 +16,7 @@ async def test_ticker_fires_only_scheduled_devices():
     mock_worker.run_probe = AsyncMock()
 
     # Симулируем 2 устройства в кэше
-    from libs.events.models import DeviceConfig
+    from libs.models.config import DeviceConfig
 
     dev1 = DeviceConfig(uid="dev-ready", ip="1.1.1.1", check_type="icmp", check_interval_sec=5)
     dev2 = DeviceConfig(uid="dev-sleeping", ip="2.2.2.2", check_type="icmp", check_interval_sec=5)

@@ -8,7 +8,7 @@ from apps.collector.actions.interface import CollectAction
 from apps.collector.actions.states.file_state_storage import FileStateStorage
 from libs.collector.models import CollectResult, JobFinishedCommand
 from libs.config import config
-from libs.events.models import CollectorTaskConfig, DeviceConfig
+from libs.models.config import CollectorTaskConfig, DeviceConfig
 from libs.null_logger import NullLogger
 
 

@@ -16,7 +16,7 @@ from apps.collector.actions.win_events.helpers import (
 from apps.collector.actions.win_events.scripts import get_ps_script
 from libs.collector.models import CollectResult
 from libs.config import config
-from libs.events.models import DeviceConfig
+from libs.models.config import DeviceConfig
 
 
 class WinEventsCheckpoint(BaseModel):

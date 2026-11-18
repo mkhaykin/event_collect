@@ -6,7 +6,7 @@ from typing import AsyncGenerator, Protocol
 import aiofiles
 import yaml
 
-from libs.events.models import BaseDeviceConfig
+from libs.models.config import BaseDeviceConfig
 from libs.null_logger import NullLogger
 
 

@@ -1,4 +1,4 @@
-# libs/collector/models.py
+# libs/collector/config.py
 import time
 from dataclasses import dataclass
 from typing import Any

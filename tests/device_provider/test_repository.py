@@ -7,7 +7,7 @@ import redis.asyncio as valkey
 
 from apps.device_provider.repository import DeviceConfigRepository
 from libs.config import config
-from libs.events.models import DeviceConfig
+from libs.models.config import DeviceConfig
 
 
 @pytest_asyncio.fixture

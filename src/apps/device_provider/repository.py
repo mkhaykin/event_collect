@@ -10,9 +10,7 @@ from redis.asyncio import from_url
 from redis.maint_notifications import MaintNotificationsConfig
 
 from libs.config import config
-from libs.events.models import (
-    DeviceConfig,
-)
+from libs.models.config import DeviceConfig
 from libs.null_logger import NullLogger
 
 

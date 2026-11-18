@@ -2,9 +2,10 @@
 from typing import Protocol
 
 from libs.collector.models import CollectResult
-from libs.events.models import DeviceConfig
+from libs.models.config import DeviceConfig
 
 
+# TODO подумать и может отказаться, есть базовый Action (там с конструктором!)
 class CollectAction(Protocol):
     """для плагинов сбора данных (SNMP, SSH, REST API, etc.)."""
 

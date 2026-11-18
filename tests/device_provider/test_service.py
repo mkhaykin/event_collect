@@ -6,7 +6,7 @@ import pytest
 
 from apps.device_provider.repository import Result
 from apps.device_provider.service import DeviceProviderService
-from libs.events.models import DeviceConfig
+from libs.models.config import DeviceConfig
 
 
 # Кастомный асинхронный генератор для подмены DeviceLoader

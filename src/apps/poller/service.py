@@ -16,7 +16,7 @@ from apps.poller.listener import PollerBusListener
 from apps.poller.registry import DeviceRegistry
 from apps.poller.state_machine import DeviceStateMachine
 from apps.poller.workers import DeviceNetworkWorker
-from libs.events.models import DeviceConfig
+from libs.models.config import DeviceConfig
 from libs.null_logger import NullLogger
 from libs.poller.models import DeviceProbeResult
 from libs.store import Store, get_client

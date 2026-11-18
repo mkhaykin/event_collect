@@ -7,9 +7,7 @@ import redis.asyncio as valkey
 
 from apps.poller.registry import DeviceRegistry
 from libs.config import config
-from libs.events.models import (
-    DeviceConfig,
-)
+from libs.models.config import DeviceConfig
 from libs.null_logger import NullLogger
 
 

@@ -2,7 +2,7 @@
 import asyncio
 import logging
 
-from libs.events.models import DeviceConfig
+from libs.models.config import DeviceConfig
 from libs.null_logger import NullLogger
 
 
@@ -30,6 +30,7 @@ class DeviceOnlineRegistry:
             return self._devices.get(uid)
 
     async def get_snapshot(self) -> list[DeviceConfig]:
+        # TODO используется только в тестах, похоже к удалению ...
         async with self._lock:
             return list(self._devices.values())
 

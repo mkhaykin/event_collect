@@ -5,11 +5,11 @@ import redis.asyncio as valkey
 
 from libs.config import config
 from libs.events.models import (
-    DeviceConfig,
     DeviceCreatedEvent,
     DeviceDeletedEvent,
     DeviceUpdatedEvent,
 )
+from libs.models.config import DeviceConfig
 from libs.null_logger import NullLogger
 
 

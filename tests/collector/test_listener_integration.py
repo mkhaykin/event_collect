@@ -6,7 +6,7 @@ import pytest
 
 from apps.collector.listener import CollectorBusListener
 from libs.collector.models import DeviceOnlineCommand
-from libs.events.models import DeviceConfig
+from libs.models.config import DeviceConfig
 
 
 @pytest.mark.asyncio

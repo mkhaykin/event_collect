@@ -6,7 +6,7 @@ from typing import Any
 
 from apps.collector.actions.states.interface import IStateStorage
 from libs.collector.models import CollectResult
-from libs.events.models import DeviceConfig
+from libs.models.config import DeviceConfig
 from libs.null_logger import NullLogger
 
 

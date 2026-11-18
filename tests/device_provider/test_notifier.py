@@ -6,7 +6,7 @@ import pytest_asyncio
 import redis.asyncio as valkey
 
 from apps.device_provider.notifier import DeviceNotificationService
-from libs.events.models import DeviceConfig
+from libs.models.config import DeviceConfig
 
 CONFIG_EVENT_CREATED = DeviceNotificationService.CONFIG_EVENT_CREATED
 CONFIG_EVENT_UPDATED = DeviceNotificationService.CONFIG_EVENT_UPDATED

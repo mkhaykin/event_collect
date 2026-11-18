@@ -2,7 +2,7 @@
 import pytest
 
 from apps.collector.registry import DeviceOnlineRegistry
-from libs.events.models import DeviceConfig
+from libs.models.config import DeviceConfig
 
 
 @pytest.mark.asyncio
