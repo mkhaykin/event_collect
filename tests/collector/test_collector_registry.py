@@ -1,7 +1,7 @@
 # tests/collector/test_collector_registry.py
 import pytest
 
-from apps.collector.registry import DeviceOnlineRegistry
+from apps.collector.device_online_registry import DeviceOnlineRegistry
 from libs.models.config import DeviceConfig
 
 

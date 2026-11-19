@@ -66,8 +66,10 @@ class DeviceStateMachine:
         self._logger.debug("Start Processing")
         while True:
             result = await self._queue.get()
-            await self._process_single_result(result)
-            self._queue.task_done()
+            try:
+                await self._process_single_result(result)
+            finally:
+                self._queue.task_done()
 
     async def _process_single_result(self, result: DeviceProbeResult) -> None:
         uid = result.uid
@@ -92,3 +94,11 @@ class DeviceStateMachine:
             if state.current_status != "offline" and state.fail_streak >= self.FAIL_COUNT:
                 state.current_status = "offline"
                 await self._notifier.notify_offline(uid)
+
+    async def device_updated(self, uid: str) -> None:
+        self._states.pop(uid)
+        await self._notifier.notify_offline(uid)
+
+    async def device_deleted(self, uid: str) -> None:
+        self._states.pop(uid)
+        await self._notifier.notify_offline(uid)

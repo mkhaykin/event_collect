@@ -6,7 +6,7 @@ from typing import Any
 
 from apps.collector.actions.states.interface import IStateStorage
 from libs.collector.models import CollectResult
-from libs.models.config import DeviceConfig
+from libs.models.task import TaskDescription
 from libs.null_logger import NullLogger
 
 
@@ -32,6 +32,6 @@ class BaseCollectAction(ABC):
         self._extra_params = kwargs
 
     @abstractmethod
-    async def execute(self, device: DeviceConfig) -> CollectResult:
+    async def execute(self, task: TaskDescription) -> CollectResult:
         """Метод выполнения сбора данных. Обязан быть реализован в каждом плагине."""
         ...

@@ -1,4 +1,5 @@
 # tests/poller/test_ticker.py
+import asyncio
 import time
 from unittest.mock import AsyncMock, MagicMock
 
@@ -33,6 +34,7 @@ async def test_ticker_fires_only_scheduled_devices():
         worker_pool=mock_worker,
         listener=AsyncMock(),
         repository=AsyncMock(),
+        command_queue=asyncio.Queue(),
     )
 
     # Запускаем ОДИН итерационный цикл тикера (вместо бесконечного start_loop)

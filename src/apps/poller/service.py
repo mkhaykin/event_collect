@@ -13,6 +13,11 @@ from apps.poller.bus_notifier import StatusBusNotifier
 from apps.poller.ch_buffer import ClickHouseMetricsBuffer
 from apps.poller.checkers import IcmpChecker
 from apps.poller.listener import PollerBusListener
+from apps.poller.models import (
+    DeviceCreatedCommand,
+    DeviceDeletedCommand,
+    DeviceUpdatedCommand,
+)
 from apps.poller.registry import DeviceRegistry
 from apps.poller.state_machine import DeviceStateMachine
 from apps.poller.workers import DeviceNetworkWorker
@@ -32,6 +37,7 @@ class PollerService:
         worker_pool: DeviceNetworkWorker,
         listener: PollerBusListener,
         repository: DeviceConfigRepository,
+        command_queue: asyncio.Queue,
         store: Store | None = None,
         metrics_buffer: ClickHouseMetricsBuffer | None = None,
         *,
@@ -49,6 +55,8 @@ class PollerService:
         self._store = store
         self._metrics_buffer = metrics_buffer
 
+        self._command_queue = command_queue
+
         self._semaphore = asyncio.Semaphore(concurrency_limit)
 
     async def start_loop(self) -> None:
@@ -60,6 +68,8 @@ class PollerService:
         sm_task = asyncio.create_task(self._state_machine.start_processing())
         # тут поток слушателя от device provider-а
         listener_task = asyncio.create_task(self._listener.listen_forever())
+        # управляющий цикл
+        command_loop = asyncio.create_task(self._consume_commands_loop())
 
         if self._metrics_buffer:
             metrics_task = asyncio.create_task(self._metrics_buffer.start_loop())
@@ -81,6 +91,7 @@ class PollerService:
         finally:
             sm_task.cancel()
             listener_task.cancel()
+            command_loop.cancel()
             if self._store:  # TODO try или try в store?
                 await self._store.service_lifecycle_activity_store("poller", "stopped")
             if metrics_task:
@@ -113,6 +124,27 @@ class PollerService:
             # TODO подумать над шагом, но пока так
             await asyncio.sleep(1.0)
 
+    async def _consume_commands_loop(self) -> None:
+        """Единый обработчик команд мутации состояния (онлайн, офлайн, завершение сбора)."""
+        while True:
+            cmd = await self._command_queue.get()
+            try:
+                if isinstance(cmd, DeviceCreatedCommand):
+                    await self._handle_device_created(cmd.device_uid)
+
+                elif isinstance(cmd, DeviceUpdatedCommand):
+                    await self._handle_device_updated(cmd.device_uid)
+
+                elif isinstance(cmd, DeviceDeletedCommand):
+                    await self._handle_device_deleted(cmd.device_uid)
+
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                self._logger.exception("Ошибка при обработке внутренней команды: %s", cmd)
+            finally:
+                self._command_queue.task_done()
+
     async def _safe_worker_launcher(self, dev: DeviceConfig, probes_count: int) -> None:
         """Защищает операционную систему от переполнения сокет-дескрипторов."""
         async with self._semaphore:
@@ -123,6 +155,40 @@ class PollerService:
                 port=dev.port,
                 probes_count=probes_count,
             )
+
+    async def _handle_device_created(self, device_uid: str) -> None:
+        dev = await self._repository.get_device_config(device_uid)
+        if dev is None:
+            self._logger.error("")
+            return
+
+        await self._registry.add_or_update(dev)
+        self._logger.info(
+            "Устройство %s добавлено в реестр.",
+            device_uid,
+        )
+
+    async def _handle_device_updated(self, device_uid: str) -> None:
+        # TODO копипаста created
+        dev = await self._repository.get_device_config(device_uid)
+        if dev is None:
+            self._logger.error("")
+            return
+
+        await self._registry.add_or_update(dev)
+        await self._state_machine.device_updated(device_uid)
+        self._logger.info(
+            "Устройство %s обновлено в реестре.",
+            device_uid,
+        )
+
+    async def _handle_device_deleted(self, device_uid: str) -> None:
+        await self._registry.remove(device_uid)
+        await self._state_machine.device_updated(device_uid)
+        self._logger.info(
+            "Устройство %s удалено из реестра.",
+            device_uid,
+        )
 
     @classmethod
     @asynccontextmanager
@@ -146,8 +212,12 @@ class PollerService:
             logger=logger,
         )
 
-        queue: asyncio.Queue[DeviceProbeResult] = asyncio.Queue()
-        queue_ch: asyncio.Queue[DeviceProbeResult] = asyncio.Queue()
+        # очередь, куда записываются результаты проб
+        probe_result_queue: asyncio.Queue[DeviceProbeResult] = asyncio.Queue()
+        # очередь для сброса результатов проб в ClickHouse
+        probe_result_queue_store_ch: asyncio.Queue[DeviceProbeResult] = asyncio.Queue()
+        # внутренняя очередь команд
+        command_queue: asyncio.Queue = asyncio.Queue()
 
         bus_notifier = StatusBusNotifier(
             client,
@@ -155,7 +225,7 @@ class PollerService:
         )
         state_machine = DeviceStateMachine(
             bus_notifier,
-            queue,
+            probe_result_queue,
             logger=logger,
         )
 
@@ -164,14 +234,15 @@ class PollerService:
         checker = IcmpChecker(logger=logger)
         worker_pool = DeviceNetworkWorker(
             checker,
-            [queue, queue_ch],
+            [probe_result_queue, probe_result_queue_store_ch],
             logger=logger,
         )
 
         registry = DeviceRegistry()
         bus_listener = PollerBusListener(
             client,
-            registry,
+            command_queue,
+            # registry,
         )
 
         store_client = await get_client()
@@ -181,7 +252,7 @@ class PollerService:
         )
 
         ch_metrics_buffer = ClickHouseMetricsBuffer(
-            result_queue=queue_ch,
+            result_queue=probe_result_queue_store_ch,
             ch_repo=store,
             logger=logger,
         )
@@ -192,6 +263,7 @@ class PollerService:
             worker_pool,
             bus_listener,
             repository,
+            command_queue=command_queue,
             store=store,
             metrics_buffer=ch_metrics_buffer,
             concurrency_limit=concurrency_limit,

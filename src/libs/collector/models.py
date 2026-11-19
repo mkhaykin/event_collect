@@ -21,7 +21,7 @@ class CollectResult:
 class DeviceOnlineCommand:
     """Внутренняя команда на постановку устройства в расписание."""
 
-    uid: str
+    device_uid: str
     received_at: float = time.time()
 
 
@@ -29,7 +29,15 @@ class DeviceOnlineCommand:
 class DeviceOfflineCommand:
     """Внутренняя command на удаление устройства из расписания."""
 
-    uid: str
+    device_uid: str
+    received_at: float = time.time()
+
+
+@dataclass(frozen=True)
+class DeviceUpdatedCommand:
+    """Внутренняя command на обновление конфигурации устройства и переделки расписания."""
+
+    device_uid: str
     received_at: float = time.time()
 
 
@@ -37,7 +45,6 @@ class DeviceOfflineCommand:
 class JobFinishedCommand:
     """Команда завершения выполнения задачи сбора для обновления JobScheduler."""
 
-    device_uid: str
     task_uid: str
     is_success: bool
     result: CollectResult | None = None

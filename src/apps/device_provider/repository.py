@@ -50,13 +50,17 @@ class DeviceConfigRepository:
         created_at = existing_heartbeat.get("created_at", sync_time)
 
         if not stored_model:
+            self._logger.debug("Создаем устройство: %s", device.uid)
             await self._update(device, created_at, sync_time)
             return Result("created", new_value=device)
 
+        # pycharm маркирует код как не достижимый ... врет (см. логи)
         if not is_mutated:
+            self._logger.debug("Обновляем TTL устройства: %s", device.uid)
             await self._update_heartbeat(device, sync_time)
             return Result("none", new_value=device, old_value=stored_model)
 
+        self._logger.debug("Обновляем устройство: %s", device.uid)
         await self._update(device, created_at, sync_time)
         await self._update_heartbeat(device, sync_time)
         return Result("updated", new_value=device, old_value=stored_model)
@@ -93,13 +97,16 @@ class DeviceConfigRepository:
             await pipe.execute()
 
     async def _data_to_model(self, data: str | None) -> DeviceConfig | None:
-        if data:
-            try:
-                return DeviceConfig.model_validate_json(data)
-            except Exception as e:
-                self._logger.error(e)
+        if data is None:
+            return None
 
-        return None
+        try:
+            model = DeviceConfig.model_validate_json(data)
+        except Exception as e:
+            self._logger.error(e)
+            return None
+
+        return model
 
     async def _cur_state(
         self,

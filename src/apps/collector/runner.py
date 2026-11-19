@@ -8,7 +8,7 @@ from apps.collector.actions.interface import CollectAction
 from apps.collector.actions.states.file_state_storage import FileStateStorage
 from libs.collector.models import CollectResult, JobFinishedCommand
 from libs.config import config
-from libs.models.config import CollectorTaskConfig, DeviceConfig
+from libs.models.task import TaskDescription
 from libs.null_logger import NullLogger
 
 
@@ -36,7 +36,7 @@ class JobRunner:
         # храним ссылки на активные задачи
         self._active_tasks: set[asyncio.Task[None]] = set()
 
-    def dispatch(self, device: DeviceConfig, task: CollectorTaskConfig) -> None:
+    def dispatch(self, task: TaskDescription) -> None:
         """запуск задачи сбора для устройства."""
         plugin_class = self._plugin_registry.get(task.type)
         target_queue = self._queues_registry.get(task.type)
@@ -45,15 +45,13 @@ class JobRunner:
             self._logger.error("Не найден плагин или очередь для типа задачи: %s", task.type)
             return
 
-        t = asyncio.create_task(self._execute_safe(device, task, plugin_class, target_queue))
+        t = asyncio.create_task(self._execute_safe(task, plugin_class, target_queue))
         self._active_tasks.add(t)
         t.add_done_callback(self._active_tasks.discard)
 
     async def _execute_safe(
         self,
-        # task_id: str,  # TODO наверное uid ...
-        device: DeviceConfig,
-        task: CollectorTaskConfig,
+        task: TaskDescription,
         plugin_class: type[Any],
         target_queue: asyncio.Queue,
     ) -> None:
@@ -73,7 +71,7 @@ class JobRunner:
 
         async with self._semaphore:
             try:
-                result = await action.execute(device)
+                result = await action.execute(task)
                 if result is None:
                     # если не получили результат, то считаем, что ошибка исполнения
                     # (хотя это может и косяк реализации Action)
@@ -81,26 +79,25 @@ class JobRunner:
                 is_success = result.is_success
 
                 if is_success:
-                    self._logger.info("Сбор данных для %s завершен успешно", device.uid)
+                    self._logger.info("Сбор данных по задаче %s завершен успешно", task.uid)
                 else:
                     self._logger.warning(
-                        "Сбор данных для %s завершился ошибкой: %s",
-                        device.uid,
+                        "Сбор данных по задаче %s завершился ошибкой: %s",
+                        task.uid,
                         result.error_message,
                     )
 
             except asyncio.CancelledError:
-                self._logger.info("Задача сбора для %s была отменена", device.uid)
+                self._logger.info("Задача %s была отменена", task.uid)
                 raise
             except Exception:
                 # TODO пофиксить, и вынести отдельно RuntimeError("Не получили результат")
                 # может через свой exception
-                self._logger.exception("Непредвиденный сбой при выполнении сбора для %s", device.uid)
+                self._logger.exception("Непредвиденный сбой при выполнении задачи для %s", task.uid)
                 is_success = False
             finally:
                 # отправляем команду в очередь о завершении
                 cmd = JobFinishedCommand(
-                    device_uid=device.uid,
                     task_uid=task.uid,
                     is_success=is_success,
                     result=result,

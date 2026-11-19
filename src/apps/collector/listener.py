@@ -6,17 +6,24 @@ from typing import Any
 
 import redis.asyncio as valkey
 
-from libs.collector.models import DeviceOfflineCommand, DeviceOnlineCommand
+from libs.collector.models import (
+    DeviceOfflineCommand,
+    DeviceOnlineCommand,
+    DeviceUpdatedCommand,
+)
 from libs.config import config
 from libs.null_logger import NullLogger
 
 
 class CollectorBusListener:
-    """Фоновый подписчик на Pub/Sub шину Poller.
+    """Фоновый подписчик на Pub/Sub шину Poller и Device.
     Получает событие и бросает в локальную очередь."""
 
     CONFIG_EVENT_ONLINE: str = config.CONFIG_EVENT_ONLINE
     CONFIG_EVENT_OFFLINE: str = config.CONFIG_EVENT_OFFLINE
+
+    CONFIG_EVENT_UPDATED: str = config.CONFIG_EVENT_UPDATED
+    CONFIG_EVENT_DELETED: str = config.CONFIG_EVENT_DELETED
 
     def __init__(
         self,
@@ -56,13 +63,25 @@ class CollectorBusListener:
                     uid = data.get("uid")
 
                     if not uid:
+                        # TODO: ? log ...
                         continue
 
                     if channel == self.CONFIG_EVENT_ONLINE:
-                        await self._queue.put(DeviceOnlineCommand(uid=uid))
+                        self._logger.debug("Пришло событие online: %s", uid)
+                        await self._queue.put(DeviceOnlineCommand(device_uid=uid))
 
                     elif channel == self.CONFIG_EVENT_OFFLINE:
-                        await self._queue.put(DeviceOfflineCommand(uid=uid))
+                        self._logger.debug("Пришло событие offline: %s", uid)
+                        await self._queue.put(DeviceOfflineCommand(device_uid=uid))
+
+                    elif channel in self.CONFIG_EVENT_UPDATED:
+                        self._logger.debug("Пришло событие device_updated: %s", uid)
+                        await self._queue.put(DeviceUpdatedCommand(device_uid=uid))
+
+                    elif channel == self.CONFIG_EVENT_DELETED:
+                        self._logger.debug("Пришло событие device_deleted: %s", uid)
+                        self._logger.debug("Поймали удаление устройства %s, сбрасываем его в offline", uid)
+                        await self._queue.put(DeviceOfflineCommand(device_uid=uid))
 
             except asyncio.CancelledError:
                 self._logger.info("слушатель шины поллера остановлен.")

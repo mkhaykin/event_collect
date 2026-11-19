@@ -1,23 +1,26 @@
-# libs/events/config.py
+# libs/events/models.py
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
-from libs.models.config import BaseDeviceConfig, DeviceConfig
-
-
-class DeviceHeartbeat(BaseDeviceConfig):
-    created_at: str
-    updated_at: str
+from libs.models.config import DeviceConfig
 
 
-class DeviceCreatedEvent(BaseDeviceConfig):
+class DeviceCreatedEvent(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    uid: str
     device: DeviceConfig | None = None
 
 
-class DeviceUpdatedEvent(BaseDeviceConfig):
+class DeviceUpdatedEvent(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    uid: str
     device: DeviceConfig | None = None
     device_old: DeviceConfig | None = None
 
 
 class DeviceDeletedEvent(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     uid: str

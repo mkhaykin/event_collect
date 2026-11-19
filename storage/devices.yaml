@@ -1,8 +1,7 @@
 devices:
-#  - uid: "router-core-01"
-#    ip: "192.168.250.1"
-#    check_type: "icmp"
-#    collect_interval_min: 3
+  - name: "router-core-01"
+    ip: "192.168.250.1"
+    check_type: "icmp"
 #
 #  - uid: "web-server-02"
 #    ip: "192.168.1.1"
@@ -10,13 +9,12 @@ devices:
 #    port: 80
 #    collect_interval_min: 6
 
-  - uid: "web-server-03"
-    name: "web-server-03"
+  - name: "web-server-03"
     ip: "192.168.250.121"
     # ips: [ ... ] TODO?
     check_type: "icmp"
     collectors:
-      - uid: "web-server-03:win_events"  # подумать над именем ...
+      - name: "win_events"
         type: win_events
         interval_min: 5
         params:

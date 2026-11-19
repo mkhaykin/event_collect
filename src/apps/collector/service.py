@@ -11,14 +11,15 @@ from apps.collector.actions.base import BaseCollectAction
 from apps.collector.actions.win_events.actions import WinEventsCollectAction
 from apps.collector.actions.win_events.saver import ClickHouseWinEventsSaver
 from apps.collector.listener import CollectorBusListener
-from apps.collector.registry import DeviceOnlineRegistry
 from apps.collector.runner import JobRunner
 from apps.collector.scheduler import JobScheduler
 from apps.collector.store import CollectorStatusStore
+from apps.collector.task_registry import TaskRegistry
 from apps.device_provider.repository import DeviceConfigRepository
 from libs.collector.models import (
     DeviceOfflineCommand,
     DeviceOnlineCommand,
+    DeviceUpdatedCommand,
     JobFinishedCommand,
 )
 from libs.config import config
@@ -33,7 +34,7 @@ class CollectorService:
 
     def __init__(  # noqa: PLR0913 PLR0917
         self,
-        registry: DeviceOnlineRegistry,
+        registry: TaskRegistry,
         repository: DeviceConfigRepository,  # valkey_repo
         scheduler: JobScheduler,
         runner: JobRunner,
@@ -87,14 +88,22 @@ class CollectorService:
             cmd = await self._queue.get()
             try:
                 if isinstance(cmd, DeviceOnlineCommand):
-                    await self._handle_device_online(cmd.uid)
+                    await self._handle_device_online(cmd.device_uid)
 
                 elif isinstance(cmd, DeviceOfflineCommand):
-                    await self._handle_device_offline(cmd.uid)
+                    await self._handle_device_offline(cmd.device_uid)
+
+                elif isinstance(cmd, DeviceUpdatedCommand):
+                    if cmd.device_uid in self._scheduler:
+                        self._logger.debug("Устройство изменено, сначала offline, потом online")
+                        await self._handle_device_offline(cmd.device_uid)
+                        await self._handle_device_online(cmd.device_uid)
+                    else:
+                        self._logger.debug("Устройство %s не в графике коллектора, игнорируем")
 
                 elif isinstance(cmd, JobFinishedCommand):
                     self._scheduler.mark_finished(
-                        cmd.device_uid,
+                        # cmd.device_uid,
                         cmd.task_uid,
                         is_success=cmd.is_success,
                         retry_delay_sec=self.RETRY_DELAY_SEC,
@@ -110,64 +119,49 @@ class CollectorService:
             finally:
                 self._queue.task_done()
 
-    async def _handle_device_online(self, uid: str) -> None:
-        device = await self._repository.get_device_config(uid)
+    async def _handle_device_online(self, device_uid: str) -> None:
+        device = await self._repository.get_device_config(device_uid)
         if not device:
             return
 
-        await self._db_repo.log_status_change(uid, "ONLINE")
+        await self._db_repo.log_status_change(device_uid, "ONLINE")
         await self._registry.add_or_update(device)
 
-        if not device.collectors:
-            self._logger.warning("Устройство %s онлайн, collectors пуст, сбор игнорируется", uid)
+        tasks = device.get_collectors()
+        if not tasks:
+            self._logger.warning("Устройство %s онлайн, collectors пуст, сбор игнорируется", device_uid)
             return
 
-        for task in device.collectors:
+        for task in tasks:
             # Переводим минуты из конфига в секунды для шедулера
-            self._scheduler.register(uid, task.uid, interval=task.interval_min * 60)
+            self._scheduler.register(task)
             self._logger.info(
-                "Устройство %s поставлено на сбор (интервал: %s мин)",
-                uid,
-                task.interval_min,
+                "Устройство %s поставлено на сбор (интервал: %s сек)",
+                device_uid,
+                task.interval_sec,
             )
 
     async def _handle_device_offline(self, uid: str) -> None:
         await self._db_repo.log_status_change(uid, "OFFLINE")
 
-        device = await self._registry.get(uid)
-        if device:
-            pass
-
+        for task in await self._registry.get_tasks(uid):
+            self._logger.info("Удаляем задачу %s из расписания", task.uid)
+            self._scheduler.remove(task.uid)
         await self._registry.remove(uid)
-        self._scheduler.remove(uid)
-        self._logger.info("Устройство %s снято со сбора", uid)
 
     async def _loop(self) -> None:
         while True:
-            due_uids = self._scheduler.get_due_jobs()
+            due_task_uids = self._scheduler.get_due_jobs()
 
-            for device_uid, task_uid in due_uids:
-                device = await self._registry.get(device_uid)
-                if device:
-                    task = None
-                    for item in device.collectors:
-                        if item.uid == task_uid:
-                            task = item
-
-                    if task is None:
-                        self._logger.error(
-                            "Дичь. Нет таска %s для %s, хотя должен быть",
-                            task_uid,
-                            device_uid,
-                        )
-                        continue
-
-                    self._scheduler.mark_started(device_uid, task_uid)
-                    self._runner.dispatch(device, task)
+            for task_uid in due_task_uids:
+                task = await self._registry.get_task(task_uid)
+                if task:
+                    self._scheduler.mark_started(task_uid)
+                    self._runner.dispatch(task)
                 else:
                     self._logger.error(
-                        "Не нашли конфигурацию устройства %s в репозитории, пропускаем обработку",
-                        device_uid,
+                        "Не нашли конфигурацию таска %s, пропускаем обработку",
+                        task_uid,
                     )
 
             # определяем время сна
@@ -234,13 +228,6 @@ class CollectorService:
 
         db_repo = CollectorStatusStore(logger=logger)
 
-        registry = DeviceOnlineRegistry(logger=logger)
-
-        # стартует задачи, контролирует расписание
-        scheduler = JobScheduler(
-            logger=logger,
-        )
-
         # листенер, подписан на события поллера (online|offline)
         bus_listener = CollectorBusListener(
             valkey_client,
@@ -249,6 +236,7 @@ class CollectorService:
         )
 
         runner = JobRunner(
+            # TODO убираем плагины и очереди, делаем Фабрику плагинов
             plugin_registry,
             queues_registry,
             command_queue=internal_queue,
@@ -261,8 +249,12 @@ class CollectorService:
         # само ядро
         engine = cls(
             repository=config_repository,
-            registry=registry,
-            scheduler=scheduler,
+            # ведет реест задач
+            registry=TaskRegistry(logger=logger),
+            # стартует задачи, контролирует расписание
+            scheduler=JobScheduler(
+                logger=logger,
+            ),
             runner=runner,
             db_repo=db_repo,
             command_queue=internal_queue,

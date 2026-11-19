@@ -36,4 +36,4 @@ class DeviceOnlineEvent(BaseModel):
 
 class DeviceOfflineEvent(BaseModel):
     uid: str
-    status: Literal["online", "offline"] = "online"
+    status: Literal["online", "offline"] = "offline"

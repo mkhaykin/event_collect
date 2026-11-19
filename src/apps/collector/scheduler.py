@@ -3,6 +3,7 @@ import logging
 import time
 from dataclasses import dataclass
 
+from libs.models.task import TaskDescription
 from libs.null_logger import NullLogger
 
 
@@ -21,76 +22,56 @@ class JobScheduler:
     ) -> None:
         self._logger = logger or NullLogger(__name__)
 
-        # Двухуровневый индекс: {device_uid: {task_uid: JobInfo}}
-        self._jobs: dict[str, dict[str, JobInfo]] = {}
-        # Множество запущенных в данный момент задач: {(device_uid, task_uid)}
-        self._running: set[tuple[str, str]] = set()
+        # что и когда запускаем
+        self._jobs: dict[str, JobInfo] = {}
+        # множество запущенных в данный момент задач
+        self._running: set[str] = set()
 
     def register(
         self,
-        device_uid: str,
-        task_uid: str,
-        interval: float,
-        next_run: float | None = None,
+        task: TaskDescription,
     ) -> None:
         """Регистрируем расписание устройства."""
-        if device_uid in self._jobs:
-            self._logger.info("Смена расписания у %s", device_uid)
+        if task.uid in self._jobs:
+            self._logger.info("Повторная регистрация, смена расписания у %s", task.uid)
+            # тут бы по честному пересчитать расписание, но не понятно как ...
 
-        if device_uid not in self._jobs:
-            self._jobs[device_uid] = {}
+        self._jobs[task.uid] = JobInfo(next_run=time.time(), interval=task.interval_sec)
 
-        self._jobs[device_uid][task_uid] = JobInfo(next_run=next_run or time.time(), interval=interval)
-
-    def _clear_running(self, device_uid: str) -> None:
-        for device, task in self._running:
-            if device == device_uid:
-                self._running.discard((device_uid, task))
-
-    def remove(self, device_uid: str, task_uid: str | None = None) -> None:
+    def remove(self, task_uid: str) -> None:
         """Удаляет устройство из расписания и списка запущенных."""
-        if device_uid not in self._jobs:
-            self._logger.warning("Повторное удаление устройства %s ...", device_uid)
+        if task_uid not in self._jobs:
+            self._logger.warning("Повторное удаление таски %s ...", task_uid)
             return
 
-        if task_uid is None:
-            self._clear_running(device_uid)
-            self._jobs.pop(device_uid, None)
-        else:
-            self._running.discard((device_uid, task_uid))
-            self._jobs[device_uid].pop(task_uid, None)
+        self._running.discard(task_uid)
+        self._jobs.pop(task_uid, None)
 
     def get_due_jobs(
         self,
         current_time: float | None = None,
-    ) -> list[tuple[str, str]]:  # сделать класс device_uid, task_uid
+    ) -> list[str]:
         """
         Возвращает список UID, готовых к запуску (не запущенных прямо сейчас и чье время пришло).
         """
         current_time = current_time or time.time()
         result = []
 
-        for device_uid, tasks in self._jobs.items():
-            for task_uid, job in tasks.items():
-                next_run = job.next_run
-                if (
-                    (device_uid, task_uid) not in self._running
-                    and next_run is not None
-                    and current_time >= next_run
-                ):
-                    result.append((device_uid, task_uid))
+        for task_uid, job in self._jobs.items():
+            next_run = job.next_run
+            if task_uid not in self._running and next_run is not None and current_time >= next_run:
+                result.append(task_uid)
 
         return result
 
-    def mark_started(self, device_uid: str, task_uid: str) -> None:
+    def mark_started(self, task_uid: str) -> None:
         """
         Ставит отметку 'running'.
         """
-        self._running.add((device_uid, task_uid))
+        self._running.add(task_uid)
 
     def mark_finished(
         self,
-        device_uid: str,
         task_uid: str,
         *,
         is_success: bool = True,
@@ -102,20 +83,13 @@ class JobScheduler:
         Если задача провалилась (is_success=False) и устройство еще в расписании,
         сдвигает next_run на retry_delay_sec.
         """
-        self._running.discard((device_uid, task_uid))
+        self._running.discard(task_uid)
 
-        tasks = self._jobs.pop(device_uid, None)
-        if tasks is None:
-            self._logger.warning("Задач по устройству %s уже нет", device_uid)
-            return
-
-        old_job = tasks.pop(task_uid, None)
-
-        if old_job is None:
+        task = self._jobs.pop(task_uid, None)
+        if task is None:
             self._logger.warning(
-                "Задача %s по устройству %s уже не в расписании, не продлеваем",
+                "Задача %s уже не в расписании, не продлеваем",
                 task_uid,
-                device_uid,
             )
             return
 
@@ -123,12 +97,11 @@ class JobScheduler:
         if not is_success and retry_delay_sec is not None:
             interval = retry_delay_sec
         else:
-            interval = old_job.interval
+            interval = task.interval
 
-        # if device_uid not self._jobs[device_uid]
-        self._jobs.setdefault(device_uid, {})[task_uid] = JobInfo(
+        self._jobs[task_uid] = JobInfo(
             next_run=time.time() + interval,
-            interval=old_job.interval,
+            interval=task.interval,
         )
 
     def seconds_until_next(self) -> float | None:
@@ -136,15 +109,18 @@ class JobScheduler:
         Считает минимальное время сна только по тем задачам, которые НЕ находятся в self._running.
         """
         earliest_run: float | int | None = None
-        for device_uid, tasks in self._jobs.items():
-            for task_uid, job in tasks.items():
-                if (device_uid, task_uid) in self._running:
-                    continue
 
-                if earliest_run is None or earliest_run > job.next_run:
-                    earliest_run = job.next_run
+        for task_uid, job in self._jobs.items():
+            if task_uid in self._running:
+                continue
+
+            if earliest_run is None or earliest_run > job.next_run:
+                earliest_run = job.next_run
 
         if earliest_run is None:
             return None
 
         return max(0.0, earliest_run - time.time())
+
+    def __contains__(self, task_uid: str) -> bool:
+        return task_uid in self._jobs

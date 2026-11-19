@@ -16,7 +16,7 @@ from apps.collector.actions.win_events.helpers import (
 from apps.collector.actions.win_events.scripts import get_ps_script
 from libs.collector.models import CollectResult
 from libs.config import config
-from libs.models.config import DeviceConfig
+from libs.models.task import TaskDescription
 
 
 class WinEventsCheckpoint(BaseModel):
@@ -52,8 +52,8 @@ class WinEventsCollectAction(BaseCollectAction):
     # TODO не DeviceConfig, а спец моделька типа TaskParams, где будет
     #  все что надо в плоском виде. И тогда можно будет разгрузить
     #  конструктор на _extra_params!
-    async def execute(self, device: DeviceConfig) -> CollectResult:
-        self._logger.debug("Начали опрашивать устройство: %s", device.uid)
+    async def execute(self, task: TaskDescription) -> CollectResult:
+        self._logger.debug("Начали выполнять задачу: %s", task.uid)
         start_time = time.time()
         count = 0
         last_rec_id: int = -1
@@ -61,7 +61,7 @@ class WinEventsCollectAction(BaseCollectAction):
         # TODO вот это в отдельную функцию вынести
         if self._state_storage is not None:
             text = await self._state_storage.get_state(
-                key=device.uid,
+                key=task.uid,
             )
             if text is not None:
                 try:
@@ -73,13 +73,12 @@ class WinEventsCollectAction(BaseCollectAction):
                     last_rec_id = -1
                 else:
                     self._ps_script = get_ps_script(last_record_id=last_rec_id)
-                    self._logger.error(self._ps_script)
 
         try:
             # port и server в параметры?
             raw_stream = stream_powershell_output(
-                device.ip,
-                5985,
+                task.host_ip,
+                5985,  # TODO не должно быть тут!
                 powershell_script=self._ps_script,
                 username=self._usr,
                 password=self._psw,
@@ -92,32 +91,32 @@ class WinEventsCollectAction(BaseCollectAction):
                     last_rec_id = max(last_rec_id, int(raw_event.system.event_record_id or -1))
                     count += 1
                 except ValidationError:
-                    self._logger.exception("Ошибка валидации строки для %s: %s", device.uid, raw_dict)
+                    self._logger.exception("Ошибка валидации строки для %s: %s", task.uid, raw_dict)
                 except asyncio.QueueFull:
-                    self._logger.exception("Не успеваем разгребать очередь, пропуск для %s", device.uid)
+                    self._logger.exception("Не успеваем разгребать очередь, пропуск для %s", task.uid)
 
         except Exception as e:
-            self._logger.exception("Критическая ошибка I/O стриминга WinRM для %s", device.uid)
-            return CollectResult(device_uid=device.uid, is_success=False, error_message=str(e))
+            self._logger.exception("Критическая ошибка I/O стриминга WinRM для %s", task.uid)
+            return CollectResult(device_uid=task.uid, is_success=False, error_message=str(e))
 
         exec_time = time.time() - start_time
         self._logger.info(
             "Закончили опрашивать %s. Всего отправлено строк: %s. Время выполнения: %s",
-            device.uid,
+            task.uid,
             count,
             exec_time,
         )
 
         if self._state_storage is not None and last_rec_id != -1:
             await self._state_storage.save_state(
-                key=device.uid,
+                key=task.uid,
                 value=WinEventsCheckpoint(
                     last_collected_record_id=last_rec_id,
                 ).model_dump_json(),
             )
 
         return CollectResult(
-            device_uid=device.uid,
+            device_uid=task.uid,
             is_success=True,
             payload={"rows_count": count},
             execution_time_sec=exec_time,

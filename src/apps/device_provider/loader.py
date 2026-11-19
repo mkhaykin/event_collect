@@ -6,12 +6,12 @@ from typing import AsyncGenerator, Protocol
 import aiofiles
 import yaml
 
-from libs.models.config import BaseDeviceConfig
+from libs.models.config import BaseConfig
 from libs.null_logger import NullLogger
 
 
 class DeviceLoader(Protocol):
-    def devices[T: BaseDeviceConfig](
+    def devices[T: BaseConfig](
         self,
         schema: type[T],
     ) -> AsyncGenerator[T, None]: ...
@@ -27,7 +27,7 @@ class DeviceYamlLoader:
         self._logger = logger or NullLogger(__name__)
         self._config_path = config_path
 
-    async def devices[T: BaseDeviceConfig](
+    async def devices[T: BaseConfig](
         self,
         schema: type[T],
     ) -> AsyncGenerator[T, None]:

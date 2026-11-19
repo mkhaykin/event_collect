@@ -35,4 +35,5 @@ class DeviceOnlineRegistry:
             return list(self._devices.values())
 
     def __contains__(self, uid: str) -> bool:
+        # TODO похоже теперь не используется ...
         return uid in self._devices
