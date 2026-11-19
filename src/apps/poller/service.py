@@ -24,6 +24,7 @@ from apps.poller.workers import DeviceNetworkWorker
 from libs.models.config import DeviceConfig
 from libs.null_logger import NullLogger
 from libs.poller.models import DeviceProbeResult
+from libs.service_tracker import ServiceLifecycleTracker
 from libs.store import Store, get_client
 
 
@@ -38,7 +39,6 @@ class PollerService:
         listener: PollerBusListener,
         repository: DeviceConfigRepository,
         command_queue: asyncio.Queue,
-        store: Store | None = None,
         metrics_buffer: ClickHouseMetricsBuffer | None = None,
         *,
         concurrency_limit: int = 1000,
@@ -52,7 +52,6 @@ class PollerService:
         self._listener = listener
         self._repository = repository
 
-        self._store = store
         self._metrics_buffer = metrics_buffer
 
         self._command_queue = command_queue
@@ -61,9 +60,6 @@ class PollerService:
 
     async def start_loop(self) -> None:
         """Вечный цикл + засыпание на секунду."""
-        if self._store:  # TODO try или try в store?
-            await self._store.service_lifecycle_activity_store("poller", "started")
-
         # запускаем хранение состояний
         sm_task = asyncio.create_task(self._state_machine.start_processing())
         # тут поток слушателя от device provider-а
@@ -76,6 +72,7 @@ class PollerService:
         else:
             metrics_task = None
 
+        # TODO вынести в отдельный блок
         self._logger.info("Стартовая загрузка устройств из ValKey...")
         initial_devices = await self._repository.load_all_active_configs()
         for dev in initial_devices:
@@ -92,8 +89,7 @@ class PollerService:
             sm_task.cancel()
             listener_task.cancel()
             command_loop.cancel()
-            if self._store:  # TODO try или try в store?
-                await self._store.service_lifecycle_activity_store("poller", "stopped")
+
             if metrics_task:
                 metrics_task.cancel()
 
@@ -250,6 +246,7 @@ class PollerService:
             client=store_client,
             logger=logger,
         )
+        tracker = ServiceLifecycleTracker(store, service_name="poller_service", logger=logger)
 
         ch_metrics_buffer = ClickHouseMetricsBuffer(
             result_queue=probe_result_queue_store_ch,
@@ -264,14 +261,14 @@ class PollerService:
             bus_listener,
             repository,
             command_queue=command_queue,
-            store=store,
             metrics_buffer=ch_metrics_buffer,
             concurrency_limit=concurrency_limit,
             logger=logger,
         )
 
         try:
-            yield instance
+            async with tracker.track():
+                yield instance
         finally:
             await client.aclose()
             await store_client.close()

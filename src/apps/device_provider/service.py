@@ -16,6 +16,7 @@ from apps.device_provider.notifier import DeviceNotificationService
 from apps.device_provider.repository import DeviceConfigRepository
 from libs.models.config import DeviceConfig
 from libs.null_logger import NullLogger
+from libs.service_tracker import ServiceLifecycleTracker
 from libs.store import Store, get_client
 
 
@@ -31,7 +32,6 @@ class DeviceProviderService:
         loader: DeviceLoader,
         repository: DeviceConfigRepository,
         notifier: DeviceNotificationService,
-        store: Store | None = None,
         *,
         logger: logging.Logger | None = None,
     ) -> None:
@@ -41,14 +41,8 @@ class DeviceProviderService:
         self._repository = repository
         self._notifier = notifier
 
-        self._store = store
-
     async def sync_configuration(self) -> None:
         """Дифференциальная синхронизация конфигурации в Valkey и отправка эвентов."""
-        self._logger.debug("Старт синхронизации ...")
-        if self._store:  # TODO try или try в store?
-            await self._store.service_lifecycle_activity_store("device provider", "started")
-
         sync_time = datetime.now(timezone.utc).isoformat()
 
         count = 0
@@ -71,6 +65,7 @@ class DeviceProviderService:
                 elif result.action == "none":
                     self._logger.debug("продлен TTL/Heartbeat для %s, изменений нет", uid)
 
+        # TODO плохое сообщение, сбивает ...
         self._logger.debug("Изменено или добавлено %s устройств", str(count))
 
         deleted_devices = await self._repository.clear_deleted_devices()
@@ -78,9 +73,6 @@ class DeviceProviderService:
         for uid in deleted_devices:
             await self._notifier.send_device_deleted(uid)
             self._logger.info("устройство %s удалено", uid)
-
-        if self._store:  # TODO try или try в store?
-            await self._store.service_lifecycle_activity_store("device provider", "stopped")
 
     @classmethod
     @asynccontextmanager
@@ -118,17 +110,18 @@ class DeviceProviderService:
             client=store_client,
             logger=logger,
         )
+        tracker = ServiceLifecycleTracker(store, service_name="device_provider", logger=logger)
 
         instance = cls(
             loader=loader,
             repository=repository,
             notifier=notifier,
-            store=store,
             logger=logger,
         )
 
         try:
-            yield instance
+            async with tracker.track():
+                yield instance
         finally:
             await client.aclose()
             await store_client.close()

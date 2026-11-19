@@ -1,5 +1,6 @@
 import logging
 import time
+import uuid
 from typing import Iterable, Literal
 
 import clickhouse_connect
@@ -31,6 +32,7 @@ class Store:
     async def service_lifecycle_activity_store(
         self,
         service_name: str,
+        session_id: uuid.UUID,
         event: Literal["started", "stopped"],
     ) -> None:
         self._logger.debug("Сохраняем: %s %s", service_name, event)
@@ -38,9 +40,9 @@ class Store:
         await self._client.insert(
             "service_lifecycle",
             [
-                (service_name, int(time.time() * 1000), event),
+                (service_name, session_id, int(time.time() * 1000), event),
             ],
-            column_names=["service_name", "timestamp", "event"],
+            column_names=["service_name", "session_id", "timestamp", "event"],
         )
 
     async def store_probe_result(self, probes: Iterable[DeviceProbeResult]) -> None:

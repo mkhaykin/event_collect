@@ -24,6 +24,7 @@ from libs.collector.models import (
 )
 from libs.config import config
 from libs.null_logger import NullLogger
+from libs.service_tracker import ServiceLifecycleTracker
 from libs.store import Store, get_client
 
 
@@ -42,7 +43,6 @@ class CollectorService:
         wakeup_event: asyncio.Event,
         db_repo: CollectorStatusStore,
         listener: CollectorBusListener,
-        store: Store | None = None,
         *,
         logger: logging.Logger | None = None,
     ) -> None:
@@ -59,14 +59,8 @@ class CollectorService:
         self._db_repo = db_repo
         self._listener = listener
 
-        self._store = store
-
     async def start_loop(self) -> None:
         """Основной цикл"""
-        self._logger.info("%s started...", self.__class__.__name__)
-        if self._store:  # TODO try или try в store?
-            await self._store.service_lifecycle_activity_store("collector", "started")
-
         # слушатель
         listener_task = asyncio.create_task(self._listener.listen_forever())
         # запускаем фоновую вычитку данных из листенера
@@ -78,9 +72,6 @@ class CollectorService:
             consumer_task.cancel()
             listener_task.cancel()
             await asyncio.gather(listener_task, consumer_task, return_exceptions=True)
-
-            if self._store:  # TODO try или try в store?
-                await self._store.service_lifecycle_activity_store("collector", "stopped")
 
     async def _consume_commands_loop(self) -> None:
         """Единый обработчик команд мутации состояния (онлайн, офлайн, завершение сбора)."""
@@ -208,6 +199,7 @@ class CollectorService:
             client=store_client,
             logger=logger,
         )
+        tracker = ServiceLifecycleTracker(store, service_name="collector_service", logger=logger)
 
         # событие для подъема основного потока из ожидания
         wakeup_event = asyncio.Event()
@@ -246,8 +238,7 @@ class CollectorService:
 
         config_repository = DeviceConfigRepository(valkey_client, logger=logger)
 
-        # само ядро
-        engine = cls(
+        service = cls(
             repository=config_repository,
             # ведет реест задач
             registry=TaskRegistry(logger=logger),
@@ -260,12 +251,12 @@ class CollectorService:
             command_queue=internal_queue,
             wakeup_event=wakeup_event,
             listener=bus_listener,
-            store=store,
             logger=logger,
         )
 
         try:
-            yield engine
+            async with tracker.track():
+                yield service
         finally:
             win_saver_task.cancel()
 
