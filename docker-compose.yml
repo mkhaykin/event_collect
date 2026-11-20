@@ -46,39 +46,19 @@ services:
         condition: service_healthy
     command: /app/prepare/prepare.sh
 
-  device-provider-worker:
+  device-provider:
     build:
       context: .
       dockerfile: Dockerfile
-    command: .venv/bin/python -m taskiq worker apps.device_provider.tasks:broker --log-level DEBUG --no-configure-logging
+    command: .venv/bin/python -m apps.device_provider.main
     depends_on:
       app_prepare:
         condition: service_completed_successfully
     environment:
       - VALKEY_DSN=redis://valkey:6379/0
-      - TASKIQ_LOG_LEVEL=DEBUG
     volumes:
       - ./storage:/storage:ro
-    links:
-      - valkey
-
-  device-provider-scheduler:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: .venv/bin/python -m taskiq scheduler apps.device_provider.scheduler:scheduler
-    depends_on:
-      app_prepare:
-        condition: service_completed_successfully
-      device-provider-worker:
-        condition: service_started
-      collector:  # временно, из-за гонки в очереди
-        condition: service_started
-    environment:
-      - VALKEY_DSN=redis://valkey:6379/0
-      - TASKIQ_LOG_LEVEL=INFO
-    links:
-      - valkey
+    restart: always
 
   device-poller:
     build:

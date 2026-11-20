@@ -1,4 +1,5 @@
 # apps/device_provider/service.py
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -32,6 +33,7 @@ class DeviceProviderService:
         loader: DeviceLoader,
         repository: DeviceConfigRepository,
         notifier: DeviceNotificationService,
+        sync_interval_sec: int = 60,
         *,
         logger: logging.Logger | None = None,
     ) -> None:
@@ -40,6 +42,9 @@ class DeviceProviderService:
         self._loader = loader
         self._repository = repository
         self._notifier = notifier
+
+        self._interval = sync_interval_sec
+        self._wakeup_event = asyncio.Event()
 
     async def sync_configuration(self) -> None:
         """Дифференциальная синхронизация конфигурации в Valkey и отправка эвентов."""
@@ -73,6 +78,26 @@ class DeviceProviderService:
         for uid in deleted_devices:
             await self._notifier.send_device_deleted(uid)
             self._logger.info("устройство %s удалено", uid)
+
+    async def start_loop(self) -> None:
+        """Чистый asyncio цикл сна, заменяющий весь taskiq."""
+        while True:
+            self._logger.info("Запуск плановой синхронизации устройств...")
+            try:
+                await self.sync_configuration()
+            except Exception:
+                self._logger.exception("Сбой в цикле синхронизации")
+
+            self._wakeup_event.clear()
+            try:
+                await asyncio.wait_for(self._wakeup_event.wait(), timeout=self._interval)
+            except TimeoutError:
+                continue
+
+    def trigger_sync_now(self) -> None:
+        """Интерактивный метод управления: будит провайдера по требованию (например, из gRPC/FastAPI)."""
+        self._logger.info("Запрошена внеплановая синхронизация пула.")
+        self._wakeup_event.set()
 
     @classmethod
     @asynccontextmanager
