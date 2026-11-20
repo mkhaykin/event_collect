@@ -4,7 +4,7 @@ import logging
 
 import redis.asyncio as valkey
 
-from apps.poller.bus_notifier import StatusBusNotifier
+from apps.poller.bus_notifier import StatusNotifier
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - [%(name)s] - %(message)s")
 logger = logging.getLogger("BusSubscriber")
@@ -18,8 +18,8 @@ async def start_debug_subscriber() -> None:
     async with client.pubsub() as pubsub:
         # подписываемся на оба канала нотификатора
         channels = [
-            StatusBusNotifier.CONFIG_EVENT_ONLINE,
-            StatusBusNotifier.CONFIG_EVENT_OFFLINE,
+            StatusNotifier.CONFIG_EVENT_ONLINE,
+            StatusNotifier.CONFIG_EVENT_OFFLINE,
         ]
         await pubsub.subscribe(*channels)
         logger.info("слушаем: %s. Ожидаем эвенты...", channels)

@@ -1,10 +1,11 @@
 # tests/poller/test_poller_integration.py
 import json
+from unittest.mock import AsyncMock
 
 import pytest
 
 from apps.device_provider.repository import DeviceConfigRepository
-from apps.poller.bus_notifier import StatusBusNotifier
+from apps.poller.bus_notifier import StatusNotifier
 from libs.models.config import DeviceConfig
 
 CONFIG_EVENT_CREATED: str = "events:device_created"
@@ -36,11 +37,11 @@ async def test_repository_load_start_configs(valkey_client):
 @pytest.mark.asyncio
 async def test_bus_notifier_sends_events_to_valkey(valkey_client):
     """Интеграционный тест: Проверка, что StatusBusNotifier физически публикует сообщения в Valkey."""
-    notifier = StatusBusNotifier(valkey_client)
+    notifier = StatusNotifier(valkey_client, AsyncMock())
 
     client = valkey_client
     async with client.pubsub() as pubsub:
-        await pubsub.subscribe(StatusBusNotifier.CONFIG_EVENT_ONLINE)
+        await pubsub.subscribe(StatusNotifier.CONFIG_EVENT_ONLINE)
 
         await notifier.notify_online("dev-online-1")
 

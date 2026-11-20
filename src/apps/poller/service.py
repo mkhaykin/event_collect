@@ -9,7 +9,7 @@ from redis.asyncio import from_url
 from redis.maint_notifications import MaintNotificationsConfig
 
 from apps.device_provider.repository import DeviceConfigRepository
-from apps.poller.bus_notifier import StatusBusNotifier
+from apps.poller.bus_notifier import StatusNotifier
 from apps.poller.ch_buffer import ClickHouseMetricsBuffer
 from apps.poller.checkers import IcmpChecker
 from apps.poller.listener import PollerBusListener
@@ -21,6 +21,7 @@ from apps.poller.models import (
 from apps.poller.registry import DeviceRegistry
 from apps.poller.state_machine import DeviceStateMachine
 from apps.poller.workers import DeviceNetworkWorker
+from libs.model_saver import EventSaver, IEventModel
 from libs.models.config import DeviceConfig
 from libs.null_logger import NullLogger
 from libs.poller.models import DeviceProbeResult
@@ -202,6 +203,11 @@ class PollerService:
             socket_keepalive=True,
             maint_notifications_config=MaintNotificationsConfig(enabled=False),
         )
+        ch_client = await get_client()
+
+        # очередь сообщений
+        event_queue: asyncio.Queue[IEventModel] = asyncio.Queue()
+        event_saver = EventSaver(ch_client, event_queue, logger=logger)
 
         repository = DeviceConfigRepository(
             client,
@@ -215,10 +221,12 @@ class PollerService:
         # внутренняя очередь команд
         command_queue: asyncio.Queue = asyncio.Queue()
 
-        bus_notifier = StatusBusNotifier(
+        bus_notifier = StatusNotifier(
             client,
+            event_queue,
             logger=logger,
         )
+
         state_machine = DeviceStateMachine(
             bus_notifier,
             probe_result_queue,
@@ -241,9 +249,8 @@ class PollerService:
             # registry,
         )
 
-        store_client = await get_client()
         store = Store(
-            client=store_client,
+            client=ch_client,
             logger=logger,
         )
         tracker = ServiceLifecycleTracker(store, service_name="poller_service", logger=logger)
@@ -266,9 +273,13 @@ class PollerService:
             logger=logger,
         )
 
+        saver_task = asyncio.create_task(event_saver.start_loop())
         try:
             async with tracker.track():
                 yield instance
         finally:
+            saver_task.cancel()
+            await asyncio.gather(saver_task, return_exceptions=True)
+
             await client.aclose()
-            await store_client.close()
+            await ch_client.close()
