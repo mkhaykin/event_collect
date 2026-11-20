@@ -1,5 +1,6 @@
 # apps/common/lifecycle.py
 import logging
+import time
 import uuid
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Literal, Protocol
@@ -12,6 +13,7 @@ class IServiceStore(Protocol):
         self,
         service_name: str,
         session_id: uuid.UUID,
+        timestamp: int,
         event: Literal["started", "stopped"],
     ) -> None:
         pass
@@ -44,6 +46,7 @@ class ServiceLifecycleTracker:
             await self._store.service_lifecycle_activity_store(
                 self._name,
                 self._session_id,
+                int(time.time() * 1000),
                 "started",
             )
         except Exception:
@@ -61,6 +64,7 @@ class ServiceLifecycleTracker:
                 await self._store.service_lifecycle_activity_store(
                     self._name,
                     self._session_id,
+                    int(time.time() * 1000),
                     "stopped",
                 )
             except Exception:

@@ -1,5 +1,4 @@
 import logging
-import time
 import uuid
 from typing import Iterable, Literal
 
@@ -33,6 +32,7 @@ class Store:
         self,
         service_name: str,
         session_id: uuid.UUID,
+        timestamp: int,
         event: Literal["started", "stopped"],
     ) -> None:
         self._logger.debug("Сохраняем: %s %s", service_name, event)
@@ -40,7 +40,7 @@ class Store:
         await self._client.insert(
             "service_lifecycle",
             [
-                (service_name, session_id, int(time.time() * 1000), event),
+                (service_name, session_id, timestamp, event),
             ],
             column_names=["service_name", "session_id", "timestamp", "event"],
         )
