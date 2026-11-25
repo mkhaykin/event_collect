@@ -98,13 +98,30 @@ class WebUiWidgetsController(Controller):
         self,
         global_period: str = "1d",  # noqa: ARG002
         global_date: str = "",  # noqa: ARG002
+        tab: str = "periods",  # Варианты: periods, sources, types
     ) -> Template:
-        """СТРОКА 2: Детализация объема сбора логов (График)."""
-        # Честный тестовый массив гигабайт по дням недели
-        mock_chart_data = [12.4, 15.1, 11.2, 18.4, 22.1, 14.8, 19.3]
+        """СТРОКА 2: Детализация объема сбора логов с динамическими табами."""
+        if tab == "sources":
+            # Вариант Б: По источникам (Круговая диаграмма)
+            mock_data = [45.2, 30.1, 15.4, 9.3]  # % распределения по серверам
+            return Template(
+                template_name="widgets/collection_details_sources.html",
+                context={"chart_data": mock_data, "active_tab": "sources"},
+            )
+
+        elif tab == "types":
+            # Вариант В: По типам (Столбчатая диаграмма)
+            mock_data = [120, 85, 45, 10]  # Количество тысяч событий
+            return Template(
+                template_name="widgets/collection_details_types.html",
+                context={"chart_data": mock_data, "active_tab": "types"},
+            )
+
+        # Вариант А (Дефолт): По периодам (Линейный график)
+        mock_data = [12.4, 15.1, 11.2, 18.4, 22.1, 14.8, 19.3]
         return Template(
-            template_name="widgets/collection_details.html",
-            context={"chart_data": mock_chart_data},
+            template_name="widgets/collection_details_periods.html",
+            context={"chart_data": mock_data, "active_tab": "periods"},
         )
 
     @get("/events-categories")
@@ -113,12 +130,22 @@ class WebUiWidgetsController(Controller):
         global_period: str = "1d",  # noqa: ARG002
         global_date: str = "",  # noqa: ARG002
     ) -> Template:
-        """СТРОКА 3: Процентное соотношение логов Windows по журналам."""
-        # Честное тестовое распределение в процентах для круговой диаграммы
-        mock_categories_data = [65, 25, 10]  # 65% Security, 25% System, 10% Application
+        """СТРОКА 3: Детальное соотношение логов Windows по категориям."""
+
+        # Данные строго по твоему макету
+        mock_categories = [
+            {"label": "Критичные", "count": 218, "pct": 17.5, "color": "#ef4444"},  # Красный (rose-500)
+            {"label": "Ошибки", "count": 386, "pct": 30.9, "color": "#f97316"},  # Оранжевый (orange-500)
+            {"label": "Предупреждения", "count": 312, "pct": 25.0, "color": "#eab308"},  # Желтый (amber-500)
+            {"label": "Информация", "count": 332, "pct": 26.6, "color": "#3b82f6"},  # Синий (blue-500)
+        ]
+
         return Template(
             template_name="widgets/events_categories.html",
-            context={"categories_data": mock_categories_data},
+            context={
+                "total_count": "1 248",
+                "categories": mock_categories,
+            },
         )
 
     @get("/recent-events")

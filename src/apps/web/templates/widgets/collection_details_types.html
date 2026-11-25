@@ -1,0 +1,18 @@
+<!-- src/apps/web_ui/templates/widgets/collection_details_types.html -->
+<div class="flex flex-col h-full justify-between"
+     hx-get="/components/collection-details?tab=types"
+     hx-trigger="globalFilterChanged from:body"
+     hx-target="#collection-details-container"
+     hx-swap="innerHTML"
+     hx-include="#global-filters">
+    <div>
+        <h3 class="text-base font-semibold text-slate-100 mb-4">Детализация сбора</h3>
+        <div class="flex border-b border-slate-700 text-xs font-medium mb-4">
+            <button hx-get="/components/collection-details?tab=periods" hx-target="#collection-details-container" hx-swap="innerHTML" class="text-slate-400 hover:text-sky-400 pb-2 px-2 focus:outline-none">По периодам</button>
+            <button hx-get="/components/collection-details?tab=sources" hx-target="#collection-details-container" hx-swap="innerHTML" class="text-slate-400 hover:text-sky-400 pb-2 px-2 focus:outline-none">По источникам</button>
+            <button class="border-b-2 border-sky-500 text-sky-400 pb-2 px-2 focus:outline-none">По типам</button>
+        </div>
+    </div>
+    <div class="relative w-full h-40"><canvas id="chartTypes"></canvas></div>
+</div>
+<script>(function(){const ctx=document.getElementById('chartTypes').getContext('2d');new Chart(ctx,{type:'bar',data:{labels:['Входы','Ошибки ОС','Трафик','Аудит'],datasets:[{data:{{chart_data|tojson|safe}},backgroundColor:'#a78bfa',borderRadius:4,borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:10}}},y:{grid:{color:'#334155'},ticks:{color:'#64748b',font:{size:10}}}}}});})();</script>

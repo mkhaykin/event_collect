@@ -43,29 +43,33 @@
     </div>
 
     <!-- График "Детализация сбора" с табами (1/3 ширины) -->
-    <div class="bg-[#1e293b] border border-slate-700 rounded-xl p-6"
-         hx-get="/components/collection-details"
-         hx-trigger="load, globalFilterChanged from:body"
-         hx-include="#global-filters">
-        <div class="text-slate-400 text-sm animate-pulse">Загрузка детализации сбора...</div>
+    <div class="bg-[#1e293b] border border-slate-700 rounded-xl p-6">
+
+        <div id="collection-details-container">
+            <div class="text-slate-400 text-sm animate-pulse">Загрузка деталей сбора...</div>
+        </div>
+
+        <!-- НЕВИДИМЫЙ ИНИЦИАЛИЗАТОР: Он срабатывает строго ОДИН РАЗ при загрузке страницы,
+             закачивает дефолтный график внутрь слота и засыпает. -->
+        <div hx-get="/components/collection-details?tab=periods"
+             hx-trigger="load"
+             hx-target="#collection-details-container"
+             hx-swap="innerHTML"
+             class="hidden">
+        </div>
     </div>
-<!--    &lt;!&ndash; Правая колонка (Занимает 1/3 ширины): Лента алертов "Последние события" &ndash;&gt;-->
-<!--    <div class="bg-[#1e293b] border border-slate-700 rounded-xl p-6"-->
-<!--         hx-get="/components/recent-events"-->
-<!--         hx-trigger="load, globalFilterChanged from:body"-->
-<!--         hx-include="#global-filters">-->
-<!--        <div class="text-slate-400 text-sm animate-pulse">Загрузка ленты инцидентов...</div>-->
-<!--    </div>-->
 </div>
 
 <!-- СТРОКА 3: Аналитика, Инциденты и Управление (События по категориям + Последние события + Быстрые действия) -->
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
     <!-- События по категориям -->
-    <div class="bg-[#1e293b] border border-slate-700 rounded-xl p-6"
-         hx-get="/components/events-categories"
-         hx-trigger="load, globalFilterChanged from:body"
-         hx-include="#global-filters">
-        <div class="text-slate-400 text-sm animate-pulse">Загрузка категорий событий...</div>
+    <div class="bg-[#1e293b] border border-slate-700 rounded-xl p-6">
+        <div id="events-categories-container"
+             hx-get="/components/events-categories"
+             hx-trigger="load"
+             hx-swap="innerHTML">
+            <div class="text-slate-400 text-sm animate-pulse">Загрузка категорий...</div>
+        </div>
     </div>
 
     <!-- Последние события -->

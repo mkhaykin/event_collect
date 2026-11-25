@@ -1,0 +1,19 @@
+<!-- src/apps/web_ui/templates/widgets/collection_details_periods.html -->
+<!-- Если сработает событие смены фильтров в шапке, этот конкретный открытый виджет сам обновит себя, передав свой параметр tab=periods -->
+<div class="flex flex-col h-full justify-between"
+     hx-get="/components/collection-details?tab=periods"
+     hx-trigger="globalFilterChanged from:body"
+     hx-target="#collection-details-container"
+     hx-swap="innerHTML"
+     hx-include="#global-filters">
+    <div>
+        <h3 class="text-base font-semibold text-slate-100 mb-4">Детализация сбора</h3>
+        <div class="flex border-b border-slate-700 text-xs font-medium mb-4">
+            <button class="border-b-2 border-sky-500 text-sky-400 pb-2 px-2 focus:outline-none">По периодам</button>
+            <button hx-get="/components/collection-details?tab=sources" hx-target="#collection-details-container" hx-swap="innerHTML" class="text-slate-400 hover:text-sky-400 pb-2 px-2 focus:outline-none">По источникам</button>
+            <button hx-get="/components/collection-details?tab=types" hx-target="#collection-details-container" hx-swap="innerHTML" class="text-slate-400 hover:text-sky-400 pb-2 px-2 focus:outline-none">По типам</button>
+        </div>
+    </div>
+    <div class="relative w-full h-40"><canvas id="chartPeriods"></canvas></div>
+</div>
+<script>(function(){const ctx=document.getElementById('chartPeriods').getContext('2d');new Chart(ctx,{type:'line',data:{labels:['Пн','Вт','Ср','Чт','Пт','Сб','Вс'],datasets:[{label:'Объем (ГБ)',data:{{chart_data|tojson|safe}},borderColor:'#38bdf8',backgroundColor:'rgba(56,189,248,0.05)',borderWidth:2,fill:true,tension:0.4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:10}}},y:{grid:{color:'#334155'},ticks:{color:'#64748b',font:{size:10}}}}}});})();</script>

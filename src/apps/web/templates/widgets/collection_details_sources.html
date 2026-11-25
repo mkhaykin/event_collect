@@ -1,0 +1,18 @@
+<!-- src/apps/web_ui/templates/widgets/collection_details_sources.html -->
+<div class="flex flex-col h-full justify-between"
+     hx-get="/components/collection-details?tab=sources"
+     hx-trigger="globalFilterChanged from:body"
+     hx-target="#collection-details-container"
+     hx-swap="innerHTML"
+     hx-include="#global-filters">
+    <div>
+        <h3 class="text-base font-semibold text-slate-100 mb-4">Детализация сбора</h3>
+        <div class="flex border-b border-slate-700 text-xs font-medium mb-4">
+            <button hx-get="/components/collection-details?tab=periods" hx-target="#collection-details-container" hx-swap="innerHTML" class="text-slate-400 hover:text-sky-400 pb-2 px-2 focus:outline-none">По периодам</button>
+            <button class="border-b-2 border-sky-500 text-sky-400 pb-2 px-2 focus:outline-none">По источникам</button>
+            <button hx-get="/components/collection-details?tab=types" hx-target="#collection-details-container" hx-swap="innerHTML" class="text-slate-400 hover:text-sky-400 pb-2 px-2 focus:outline-none">По типам</button>
+        </div>
+    </div>
+    <div class="relative w-full h-40 flex items-center justify-center"><canvas id="chartSources"></canvas></div>
+</div>
+<script>(function(){const ctx=document.getElementById('chartSources').getContext('2d');new Chart(ctx,{type:'pie',data:{labels:['SRV-DB-01','ROUTER-GW','PC-201','Другие'],datasets:[{data:{{chart_data|tojson|safe}},backgroundColor:['#38bdf8','#34d399','#fbbf24','#64748b'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#94a3b8',font:{size:9}}}}}});})();</script>
