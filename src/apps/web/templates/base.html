@@ -35,15 +35,35 @@
 
             <!-- Форма глобальных параметров. HTMX-виджеты будут считывать эти поля при запросах -->
             <form id="global-filters" class="flex items-center space-x-3">
-                <div class="bg-[#0f172a] rounded-lg p-0.5 flex border border-slate-700">
-                    <label class="px-3 py-1 text-xs font-medium cursor-pointer rounded-md text-slate-400 has-[:checked]:bg-sky-500 has-[:checked]:text-white">
-                        <input type="radio" name="global_period" value="1h" class="hidden" onchange="htmx.trigger('body', 'globalFilterChanged')">1 час
+                <!-- Единый контейнер переключателя -->
+                <div class="bg-[#0f172a] rounded-lg p-0.5 flex border border-slate-700 select-none">
+
+                    <!-- Вкладка: 1 час -->
+                    <label class="px-3 py-1 text-xs font-medium cursor-pointer rounded-md text-slate-400 hover:text-slate-200 transition-colors duration-150 has-[:checked]:bg-sky-500 has-[:checked]:text-white">
+                        <input type="radio" name="global_period" value="1h" class="hidden" onchange="htmx.trigger('body', 'globalFilterChanged')">
+                        1 час
                     </label>
-                    <label class="px-3 py-1 text-xs font-medium cursor-pointer rounded-md bg-sky-500 text-white has-[:checked]:bg-sky-500 has-[:checked]:text-white">
-                        <input type="radio" name="global_period" value="1d" checked class="hidden" onchange="htmx.trigger('body', 'globalFilterChanged')">1 день
+
+                    <!-- Вкладка: 1 день (checked) -->
+                    <label class="px-3 py-1 text-xs font-medium cursor-pointer rounded-md text-slate-400 hover:text-slate-200 transition-colors duration-150 has-[:checked]:bg-sky-500 has-[:checked]:text-white">
+                        <input type="radio" name="global_period" value="1d" checked class="hidden" onchange="htmx.trigger('body', 'globalFilterChanged')">
+                        1 день
                     </label>
-                    <!-- Остальные радио-кнопки (1w, 1m) делаются аналогично -->
+
+                    <!-- Вкладка: 1 неделя -->
+                    <label class="px-3 py-1 text-xs font-medium cursor-pointer rounded-md text-slate-400 hover:text-slate-200 transition-colors duration-150 has-[:checked]:bg-sky-500 has-[:checked]:text-white">
+                        <input type="radio" name="global_period" value="1w" class="hidden" onchange="htmx.trigger('body', 'globalFilterChanged')">
+                        1 неделя
+                    </label>
+
+                    <!-- Вкладка: 1 месяц -->
+                    <label class="px-3 py-1 text-xs font-medium cursor-pointer rounded-md text-slate-400 hover:text-slate-200 transition-colors duration-150 has-[:checked]:bg-sky-500 has-[:checked]:text-white">
+                        <input type="radio" name="global_period" value="1m" class="hidden" onchange="htmx.trigger('body', 'globalFilterChanged')">
+                        1 месяц
+                    </label>
                 </div>
+
+                <!-- Селектор конкретной даты -->
                 <input type="date" name="global_date" value="2026-11-25" class="bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-1 text-xs font-medium text-slate-300 focus:outline-none focus:border-sky-500" onchange="htmx.trigger('body', 'globalFilterChanged')">
             </form>
         </header>
