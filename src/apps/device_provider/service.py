@@ -15,6 +15,7 @@ from apps.device_provider.loader import (
 )
 from apps.device_provider.notifier import DeviceNotificationService
 from apps.device_provider.repository import DeviceConfigRepository
+from libs.model_saver import EventSaver, IEventModel
 from libs.models.config import DeviceConfig
 from libs.null_logger import NullLogger
 from libs.service_tracker import ServiceLifecycleTracker
@@ -125,8 +126,13 @@ class DeviceProviderService:
             logger=logger,
         )
 
+        ch_client = await get_client()
+        event_queue: asyncio.Queue[IEventModel] = asyncio.Queue()
+        event_saver = EventSaver(ch_client, event_queue, logger=logger)
+
         notifier = DeviceNotificationService(
             client=client,
+            event_queue=event_queue,
             logger=logger,
         )
 
@@ -144,9 +150,13 @@ class DeviceProviderService:
             logger=logger,
         )
 
+        saver_task = asyncio.create_task(event_saver.start_loop())
         try:
             async with tracker.track():
                 yield instance
         finally:
+            saver_task.cancel()
+            await asyncio.gather(saver_task, return_exceptions=True)
+
             await client.aclose()
             await store_client.close()

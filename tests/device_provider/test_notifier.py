@@ -1,5 +1,6 @@
 # tests/test_notifier.py
 from typing import AsyncGenerator
+from unittest.mock import AsyncMock
 
 import pytest
 import pytest_asyncio
@@ -16,7 +17,7 @@ CONFIG_EVENT_UPDATED = DeviceNotificationService.CONFIG_EVENT_UPDATED
 async def notifier(
     valkey_client: valkey.Redis,
 ) -> AsyncGenerator[DeviceNotificationService, None]:
-    srv = DeviceNotificationService(valkey_client)
+    srv = DeviceNotificationService(valkey_client, AsyncMock())
     yield srv
 
 
