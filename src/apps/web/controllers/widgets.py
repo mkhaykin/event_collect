@@ -1,0 +1,151 @@
+# src/apps/web_ui/widgets.py
+from litestar import Controller, get
+from litestar.response import Template
+
+
+class WebUiWidgetsController(Controller):
+    path = "/components"
+    tags = ["Web UI HTMX Components"]
+
+    @get("/availability")
+    async def get_availability_widget(
+        self,
+        global_period: str = "1d",  # noqa: ARG002
+        global_date: str = "",  # noqa: ARG002
+    ) -> Template:
+        mock_context = {
+            "total_devices": 642,
+            "online_count": 620,
+            "offline_count": 22,
+            "online_pct": 96.6,
+            "offline_pct": 3.4,
+        }
+        return Template(template_name="widgets/device_availability.html", context=mock_context)
+
+    @get("/response-quality")
+    async def get_response_quality_widget(
+        self,
+        global_period: str = "1d",  # noqa: ARG002
+        global_date: str = "",  # noqa: ARG002
+    ) -> Template:
+        mock_context = {
+            "avg_ping_ms": 12,
+            "drop_pct": 8,
+        }
+        return Template(template_name="widgets/response_quality.html", context=mock_context)
+
+    @get("/collection-summary")
+    async def get_collection_summary_widget(
+        self,
+        global_period: str = "1d",  # noqa: ARG002
+        global_date: str = "",  # noqa: ARG002
+    ) -> Template:
+        mock_context = {
+            "total_gb": 48.7,
+            "speed_pct": 12,
+        }
+        return Template(template_name="widgets/data_collection.html", context=mock_context)
+
+    @get("/device-table")
+    async def get_device_table_component(
+        self,
+        global_period: str = "1d",  # noqa: ARG002
+        global_date: str = "",  # noqa: ARG002
+    ) -> Template:
+        """СТРОКА 2: Рендерит расширенную таблицу хостов."""
+        mock_devices = [
+            {
+                "uid": "PC-201",
+                "ip": "192.168.1.50",
+                "ping": "4 мс",
+                "uptime": "14д 5ч",
+                "last_check": "10:28:15",
+                "status": "ONLINE",
+                "status_color": "emerald",
+            },
+            {
+                "uid": "SRV-DB-01",
+                "ip": "10.0.4.12",
+                "ping": "1 мс",
+                "uptime": "128д 2ч",
+                "last_check": "10:29:01",
+                "status": "ONLINE",
+                "status_color": "emerald",
+            },
+            {
+                "uid": "PC-205",
+                "ip": "192.168.1.55",
+                "ping": "—",
+                "uptime": "—",
+                "last_check": "09:15:32",
+                "status": "OFFLINE",
+                "status_color": "rose",
+            },
+            {
+                "uid": "ROUTER-GW",
+                "ip": "192.168.1.1",
+                "ping": "2 мс",
+                "uptime": "342д 11ч",
+                "last_check": "10:28:59",
+                "status": "ONLINE",
+                "status_color": "emerald",
+            },
+        ]
+        return Template(template_name="widgets/device_table.html", context={"devices": mock_devices})
+
+    @get("/collection-details")
+    async def get_collection_details_component(
+        self,
+        global_period: str = "1d",  # noqa: ARG002
+        global_date: str = "",  # noqa: ARG002
+    ) -> Template:
+        """СТРОКА 2: Детализация объема сбора логов (График)."""
+        # Честный тестовый массив гигабайт по дням недели
+        mock_chart_data = [12.4, 15.1, 11.2, 18.4, 22.1, 14.8, 19.3]
+        return Template(
+            template_name="widgets/collection_details.html",
+            context={"chart_data": mock_chart_data},
+        )
+
+    @get("/events-categories")
+    async def get_events_categories_component(
+        self,
+        global_period: str = "1d",  # noqa: ARG002
+        global_date: str = "",  # noqa: ARG002
+    ) -> Template:
+        """СТРОКА 3: Процентное соотношение логов Windows по журналам."""
+        # Честное тестовое распределение в процентах для круговой диаграммы
+        mock_categories_data = [65, 25, 10]  # 65% Security, 25% System, 10% Application
+        return Template(
+            template_name="widgets/events_categories.html",
+            context={"categories_data": mock_categories_data},
+        )
+
+    @get("/recent-events")
+    async def get_recent_events_component(
+        self,
+        global_period: str = "1d",  # noqa: ARG002
+        global_date: str = "",  # noqa: ARG002
+    ) -> Template:
+        """СТРОКА 3: Рендерит ленту последних системных алертов."""
+        mock_events = [
+            {
+                "time": "10:28",
+                "level": "Критично",
+                "badge_color": "rose",
+                "msg": "Устройство PC-205 перешло в статус OFFLINE",
+            },
+            {
+                "time": "10:15",
+                "level": "Ошибка",
+                "badge_color": "amber",
+                "msg": "SRV-DB-01: Обнаружен брутфорс! 5000 отказов входа (ID 4625)",
+            },
+            {
+                "time": "09:42",
+                "level": "Предупреждение",
+                "badge_color": "sky",
+                "msg": "PC-201: Обогащение чекпоинта восстановлено из ClickHouse",
+            },
+        ]
+        return Template(template_name="widgets/recent_events.html", context={"events": mock_events})

@@ -1,0 +1,58 @@
+<!-- src/apps/web/templates/base.html -->
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>EventMonitor — Мониторинг и сбор событий</title>
+    <script src="/static/js/htmx.min.js"></script>
+    <script src="/static/js/chart.umd.min.js"></script>
+    <script src="/static/js/tailwindcss.js"></script>
+</head>
+<body class="bg-[#0f172a] text-slate-200 min-h-screen flex">
+
+    <!-- Боковое навигационное меню -->
+    <aside class="w-64 bg-[#1e293b] border-r border-slate-700 flex flex-col p-4">
+        <div class="mb-8 px-2">
+            <h1 class="text-xl font-bold text-sky-400">EventMonitor</h1>
+            <p class="text-xs text-slate-400">Мониторинг и сбор событий</p>
+        </div>
+        <nav class="flex-1 space-y-1">
+            <a href="/" class="block px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-700 transition">Обзор</a>
+            <a href="/availability" class="block px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-700 transition">Доступность устройств</a>
+            <a href="/collection" class="block px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-700 transition">Сбор данных</a>
+            <a href="/events" class="block px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-700 transition">События</a>
+            <a href="/reports" class="block px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-700 transition">Отчеты</a>
+            <a href="/notifications" class="block px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-700 transition">Уведомления</a>
+            <a href="/settings" class="block px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-700 transition">Настройки</a>
+        </nav>
+    </aside>
+
+    <!-- Основной контентный блок -->
+    <main class="flex-1 flex flex-col min-w-0">
+        <!-- Верхняя панель управления с Глобальными Параметрами -->
+        <header class="h-16 bg-[#1e293b] border-b border-slate-700 flex items-center justify-between px-6">
+            <h2 class="text-lg font-semibold text-slate-100">Обзор системы</h2>
+
+            <!-- Форма глобальных параметров. HTMX-виджеты будут считывать эти поля при запросах -->
+            <form id="global-filters" class="flex items-center space-x-3">
+                <div class="bg-[#0f172a] rounded-lg p-0.5 flex border border-slate-700">
+                    <label class="px-3 py-1 text-xs font-medium cursor-pointer rounded-md text-slate-400 has-[:checked]:bg-sky-500 has-[:checked]:text-white">
+                        <input type="radio" name="global_period" value="1h" class="hidden" onchange="htmx.trigger('body', 'globalFilterChanged')">1 час
+                    </label>
+                    <label class="px-3 py-1 text-xs font-medium cursor-pointer rounded-md bg-sky-500 text-white has-[:checked]:bg-sky-500 has-[:checked]:text-white">
+                        <input type="radio" name="global_period" value="1d" checked class="hidden" onchange="htmx.trigger('body', 'globalFilterChanged')">1 день
+                    </label>
+                    <!-- Остальные радио-кнопки (1w, 1m) делаются аналогично -->
+                </div>
+                <input type="date" name="global_date" value="2026-11-25" class="bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-1 text-xs font-medium text-slate-300 focus:outline-none focus:border-sky-500" onchange="htmx.trigger('body', 'globalFilterChanged')">
+            </form>
+        </header>
+
+        <!-- Рабочая зона страницы -->
+        <div class="p-6 overflow-y-auto flex-1">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+</body>
+</html>

@@ -6,7 +6,7 @@ repos:
         files: \.(py|sh|rst|yml|yaml)$
       - id: check-added-large-files  # тяжелые файлы
         args: ['--maxkb=32']
-        exclude: ^uv.lock$
+        exclude: ^uv.lock$|.js$
       - id: check-yaml               # синтаксис .yaml файлов
       - id: check-json               # синтаксис .json файлов
       - id: check-case-conflict   # проверяет файлы, которые могут конфликтовать в файловых системах без учета регистра.

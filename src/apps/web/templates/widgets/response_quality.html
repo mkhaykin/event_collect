@@ -1,0 +1,9 @@
+<!-- src/apps/web/templates/widgets/response_quality.html -->
+<div class="flex items-center justify-between mb-4">
+    <h3 class="text-sm font-medium text-slate-400">Качество отклика (среднее)</h3>
+</div>
+<div>
+    <span class="text-4xl font-bold tracking-tight text-white">{{ avg_ping_ms }} мс</span>
+    <span class="text-xs text-emerald-400 font-medium ml-2">↓ {{ drop_pct }}%</span>
+    <p class="text-xs text-slate-400 mt-1">Норма: < 50 мс</p>
+</div>

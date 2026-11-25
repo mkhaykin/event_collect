@@ -135,6 +135,19 @@ services:
       retries: 3
       start_period: 5s
 
+  web-ui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8000"
+    command: litestar run --host 0.0.0.0 --port 8000
+    environment:
+      - LITESTAR_APP=apps.web.main:create_app
+    depends_on:
+      api:
+        condition: service_healthy
+
 networks:
   default:
     name: lan_event_collect
