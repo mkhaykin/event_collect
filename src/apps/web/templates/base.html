@@ -34,39 +34,46 @@
         <header class="h-16 bg-[#1e293b] border-b border-slate-700 flex items-center justify-between px-6">
             <h2 class="text-lg font-semibold text-slate-100">Обзор системы</h2>
 
-            <!-- Форма глобальных параметров. HTMX-виджеты будут считывать эти поля при запросах -->
-            <form id="global-filters" class="flex items-center space-x-3">
-                <!-- Единый контейнер переключателя -->
-                <div class="bg-[#0f172a] rounded-lg p-0.5 flex border border-slate-700 select-none">
+        <!-- Форма глобальной Машины Времени -->
+        <form id="global-filters" class="flex items-center space-x-3" x-data="{ isLive: true, anchorTime: '2026-11-26T19:46' }">
 
-                    <!-- Вкладка: 1 час -->
-                    <label class="px-3 py-1 text-xs font-medium cursor-pointer rounded-md text-slate-400 hover:text-slate-200 transition-colors duration-150 has-[:checked]:bg-sky-500 has-[:checked]:text-white">
-                        <input type="radio" name="global_period" value="1h" class="hidden" onchange="htmx.trigger('body', 'globalFilterChanged')">
-                        1 час
-                    </label>
+            <!-- Переключатель периодов (Ширина окна) -->
+            <div class="bg-[#0f172a] rounded-lg p-0.5 flex border border-slate-700 select-none">
+                <label class="px-3 py-1 text-xs font-medium cursor-pointer rounded-md text-slate-400 has-[:checked]:bg-sky-500 has-[:checked]:text-white">
+                    <input type="radio" name="global_period" value="1h" class="hidden" onchange="htmx.trigger('body', 'globalFilterChanged')">1 час
+                </label>
+                <label class="px-3 py-1 text-xs font-medium cursor-pointer rounded-md text-slate-400 has-[:checked]:bg-sky-500 has-[:checked]:text-white">
+                    <input type="radio" name="global_period" value="1d" checked class="hidden" onchange="htmx.trigger('body', 'globalFilterChanged')">1 день
+                </label>
+                <label class="px-3 py-1 text-xs font-medium cursor-pointer rounded-md text-slate-400 has-[:checked]:bg-sky-500 has-[:checked]:text-white">
+                    <input type="radio" name="global_period" value="1w" class="hidden" onchange="htmx.trigger('body', 'globalFilterChanged')">1 неделя
+                </label>
+            </div>
 
-                    <!-- Вкладка: 1 день (checked) -->
-                    <label class="px-3 py-1 text-xs font-medium cursor-pointer rounded-md text-slate-400 hover:text-slate-200 transition-colors duration-150 has-[:checked]:bg-sky-500 has-[:checked]:text-white">
-                        <input type="radio" name="global_period" value="1d" checked class="hidden" onchange="htmx.trigger('body', 'globalFilterChanged')">
-                        1 день
-                    </label>
+            <!-- Интерактивный Якорь времени -->
+            <div class="flex items-center bg-[#0f172a] border border-slate-700 rounded-lg px-2 py-1 space-x-2">
+                <!-- Кнопка фиксации Live-режима (Переключатель Сейчас / Архив) -->
+                <button type="button"
+                        @click="isLive = !isLive; if(isLive) { htmx.trigger('body', 'globalFilterChanged') }"
+                        :class="isLive ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'"
+                        class="px-2 py-0.5 text-[10px] font-bold uppercase rounded border transition">
+                    <span x-text="isLive ? 'Live' : 'Архив'"></span>
+                </button>
 
-                    <!-- Вкладка: 1 неделя -->
-                    <label class="px-3 py-1 text-xs font-medium cursor-pointer rounded-md text-slate-400 hover:text-slate-200 transition-colors duration-150 has-[:checked]:bg-sky-500 has-[:checked]:text-white">
-                        <input type="radio" name="global_period" value="1w" class="hidden" onchange="htmx.trigger('body', 'globalFilterChanged')">
-                        1 неделя
-                    </label>
+                <!-- Поле ввода даты И времени. Блокируется, если включен режим Live (Текущее время) -->
+                <input type="datetime-local"
+                       name="global_anchor"
+                       x-model="anchorTime"
+                       :disabled="isLive"
+                       :class="isLive ? 'opacity-40 cursor-not-allowed' : 'opacity-100 focus:border-sky-500'"
+                       class="bg-transparent text-xs font-medium text-slate-300 focus:outline-none border-none p-0"
+                       onchange="htmx.trigger('body', 'globalFilterChanged')">
 
-                    <!-- Вкладка: 1 месяц -->
-                    <label class="px-3 py-1 text-xs font-medium cursor-pointer rounded-md text-slate-400 hover:text-slate-200 transition-colors duration-150 has-[:checked]:bg-sky-500 has-[:checked]:text-white">
-                        <input type="radio" name="global_period" value="1m" class="hidden" onchange="htmx.trigger('body', 'globalFilterChanged')">
-                        1 месяц
-                    </label>
-                </div>
+                <!-- Скрытое поле, передающее флаг режима в API -->
+                <input type="hidden" name="global_is_live" :value="isLive ? '1' : '0'">
+            </div>
+        </form>
 
-                <!-- Селектор конкретной даты -->
-                <input type="date" name="global_date" value="2026-11-25" class="bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-1 text-xs font-medium text-slate-300 focus:outline-none focus:border-sky-500" onchange="htmx.trigger('body', 'globalFilterChanged')">
-            </form>
         </header>
 
         <!-- Рабочая зона страницы -->
