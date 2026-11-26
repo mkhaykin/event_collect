@@ -1,26 +1,60 @@
 # src/apps/web_ui/widgets.py
+import httpx
 from litestar import Controller, get
+from litestar.di import Provide
+from litestar.exceptions import ServiceUnavailableException
 from litestar.response import Template
+
+from libs.models.availability import (
+    AvailabilityWidgetContext,
+    BackendAvailabilityResponse,
+)
+
+
+class BackendMetricsClient:
+    def __init__(self, base_url: str = "http://api:8000/api/v1/metrics") -> None:
+        self._base_url = base_url
+
+    async def get_availability(self, period: str, date: str) -> BackendAvailabilityResponse:
+        async with httpx.AsyncClient(base_url=self._base_url, timeout=3.0) as client:
+            try:
+                response = await client.get(
+                    "/availability",
+                    params={"global_period": period, "global_date": date},
+                )
+                response.raise_for_status()
+
+                return BackendAvailabilityResponse.model_validate(response.json())
+
+            except (httpx.HTTPError, httpx.TimeoutException) as e:
+                raise ServiceUnavailableException(
+                    detail="Внутренний сервис метрик временно недоступен.",
+                ) from e
 
 
 class WebUiWidgetsController(Controller):
     path = "/components"
     tags = ["Web UI HTMX Components"]
 
+    dependencies = {"metrics_client": Provide(BackendMetricsClient)}
+
     @get("/availability")
     async def get_availability_widget(
         self,
+        metrics_client: BackendMetricsClient,
         global_period: str = "1d",  # noqa: ARG002
         global_date: str = "",  # noqa: ARG002
     ) -> Template:
-        mock_context = {
-            "total_devices": 642,
-            "online_count": 620,
-            "offline_count": 22,
-            "online_pct": 96.6,
-            "offline_pct": 3.4,
-        }
-        return Template(template_name="widgets/device_availability.html", context=mock_context)
+        dto: BackendAvailabilityResponse = await metrics_client.get_availability(
+            period=global_period,
+            date=global_date,
+        )
+        view_context = AvailabilityWidgetContext(
+            online_count=dto.online_count,
+            offline_count=dto.offline_count,
+        )
+
+        return Template(template_name="widgets/device_availability.html", context=view_context.model_dump())
 
     @get("/response-quality")
     async def get_response_quality_widget(

@@ -118,6 +118,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: api
     ports:
       - "8000:8000"
     command: litestar run --host 0.0.0.0 --port 8000
